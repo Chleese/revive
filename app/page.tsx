@@ -1,65 +1,398 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState, useRef } from "react";
+import { detectPlatform, Platform, getPlatformName } from "./utils/platform";
+import { ClipboardPrompt } from "./components/ClipboardPrompt";
+import { PlatformIcon } from "./components/PlatformIcon";
+import {
+  getUserCollections,
+  addCollection,
+  updateCollection,
+  deleteCollection,
+} from "./lib/operations";
+
+// 匿名用户ID（你自用阶段，以后改为登录用户）
+const ANONYMOUS_USER_ID = "user-revive-001";
+
+type Item = {
+  id: string;
+  title: string;
+  url: string;
+  platform: Platform;
+  image?: string;
+  isEditing?: boolean;
+  needsEdit?: boolean;
+};
+
+export default function HomePage() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [input, setInput] = useState("");
+  const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const [showClipboardPrompt, setShowClipboardPrompt] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const isMounted = useRef(false);
+
+  // 从 Supabase 加载数据
+  useEffect(() => {
+    isMounted.current = true;
+    loadItems();
+  }, []);
+
+  const loadItems = async () => {
+    try {
+      const data = await getUserCollections(ANONYMOUS_USER_ID);
+      const items = data.map((item) => ({
+        id: item.id!,
+        title: item.title,
+        url: item.url,
+        platform: item.platform as Platform,
+        image: item.image || undefined,
+        needsEdit: item.needs_edit,
+      }));
+      setItems(items);
+    } catch (error) {
+      console.error("Failed to load items:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 剪贴板检测
+  const checkClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.startsWith("http://") || text.startsWith("https://"))) {
+        setDetectedUrl(text);
+        setShowClipboardPrompt(true);
+      }
+    } catch {
+      // 忽略
+    }
+  };
+
+  // 页面加载时检测剪贴板
+  useEffect(() => {
+    const timer = setTimeout(checkClipboard, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 从文本中提取 URL
+  const extractUrl = (text: string): string | null => {
+    const urlMatch = text.match(/(https?:\/\/[^\s]+)/g);
+    return urlMatch ? urlMatch[0] : null;
+  };
+
+  // 从分享文案中提取标题
+  const extractTitle = (
+    text: string,
+    url: string,
+    platform: Platform
+  ): string => {
+    // 小红书格式：提取【和 - 之间的标题
+    const xhsMatch = text.match(/【(.+?)\s*- /);
+    if (xhsMatch) return xhsMatch[1];
+
+    // 通用格式：提取【和】之间的内容
+    const bracketMatch = text.match(/【(.+?)】/);
+    if (bracketMatch) return bracketMatch[1];
+
+    // 抖音格式：提取链接前的描述内容
+    if (platform === "douyin") {
+      const beforeUrl = text.replace(url, "").trim();
+      const cleaned = beforeUrl
+        .replace(/^[\d\s.:/\w@]+\s*/i, "")
+        .replace(/复制此链接.*$/i, "")
+        .replace(/打开Dou音搜索.*$/i, "")
+        .replace(/直接观看视频.*$/i, "")
+        .trim();
+
+      if (cleaned && cleaned.length > 0) {
+        return cleaned.length > 50 ? cleaned.substring(0, 50) + "..." : cleaned;
+      }
+    }
+
+    // 如果是纯链接，显示友好的标题
+    if (text === url || text.length === url.length) {
+      const platformNames: Record<Platform, string> = {
+        douyin: "抖音",
+        xiaohongshu: "小红书",
+        bilibili: "B站",
+        youtube: "YouTube",
+        weibo: "微博",
+        wechat: "公众号",
+        other: "链接",
+      };
+
+      const date = new Date().toLocaleDateString("zh-CN", {
+        month: "short",
+        day: "numeric",
+      });
+
+      return `${platformNames[platform]} - ${date}`;
+    }
+
+    return url;
+  };
+
+  const addItem = async (url?: string) => {
+    const extractedUrl = extractUrl(input);
+    const targetUrl = url || extractedUrl || input;
+
+    if (!targetUrl) return;
+
+    // 检测平台
+    const platform = detectPlatform(targetUrl);
+
+    // 先用本地提取的标题作为默认值
+    let title = url
+      ? targetUrl
+      : extractedUrl
+        ? extractTitle(input, targetUrl, platform)
+        : targetUrl;
+    let image: string | undefined;
+
+    // 抖音、小红书不支持 Open Graph，跳过 API 调用
+    const skipOgPlatforms: Platform[] = ["douyin", "xiaohongshu"];
+
+    if (!skipOgPlatforms.includes(platform)) {
+      try {
+        const response = await fetch(
+          `/api/og?url=${encodeURIComponent(targetUrl)}`
+        );
+        if (response.ok) {
+          const ogData = await response.json();
+          if (ogData.title) title = ogData.title;
+          if (ogData.image) image = ogData.image;
+        }
+      } catch (error) {
+        console.error("Failed to fetch OG data:", error);
+      }
+    }
+
+    // 检测是否是纯链接
+    const needsEdit =
+      title.includes("抖音 - ") ||
+      title.includes("小红书 - ") ||
+      title.includes("B站 - ");
+
+    // 保存到 Supabase
+    try {
+      const data = await addCollection({
+        user_id: ANONYMOUS_USER_ID,
+        title,
+        url: targetUrl,
+        platform,
+        image,
+        needs_edit: needsEdit,
+      });
+
+      const newItem: Item = {
+        id: data.id!,
+        title: data.title,
+        url: data.url,
+        platform: data.platform as Platform,
+        image: data.image || undefined,
+        needsEdit: data.needs_edit,
+      };
+
+      setItems([newItem, ...items]);
+      setInput("");
+      setShowClipboardPrompt(false);
+      setDetectedUrl(null);
+
+      // 如果是纯链接，提示用户编辑
+      if (needsEdit) {
+        setTimeout(() => {
+          const shouldEdit = confirm("未获取到视频标题，是否立即编辑备注？");
+          if (shouldEdit) {
+            startEdit(newItem.id);
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.error("Failed to add item:", error);
+      alert("添加失败，请重试");
+    }
+  };
+
+  const deleteItem = async (id: string) => {
+    try {
+      await deleteCollection(id);
+      setItems(items.filter((item) => item.id !== id));
+    } catch (error) {
+      console.error("Failed to delete item:", error);
+      alert("删除失败，请重试");
+    }
+  };
+
+  const startEdit = (id: string) => {
+    setItems(
+      items.map((item) =>
+        item.id === id ? { ...item, isEditing: true } : item
+      )
+    );
+  };
+
+  const saveEdit = async (id: string, newTitle: string) => {
+    try {
+      await updateCollection(id, { title: newTitle, needs_edit: false });
+      setItems(
+        items.map((item) =>
+          item.id === id
+            ? { ...item, title: newTitle, isEditing: false, needsEdit: false }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error("Failed to update item:", error);
+      alert("保存失败，请重试");
+    }
+  };
+
+  const cancelEdit = (id: string) => {
+    setItems(
+      items.map((item) =>
+        item.id === id ? { ...item, isEditing: false } : item
+      )
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
+        <div className="text-gray-900">加载中...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-gray-50 p-4">
+      <h1 className="text-xl font-bold mb-4 text-gray-900">Revive</h1>
+
+      {/* 输入框 */}
+      <div className="flex gap-2 mb-4">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="粘贴链接..."
+          className="flex-1 p-2 border rounded-lg text-gray-900 placeholder:text-gray-400"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        <button
+          onClick={() => addItem()}
+          className="bg-black text-white px-4 rounded-lg"
+        >
+          添加
+        </button>
+      </div>
+
+      {/* 卡片列表 */}
+      <div className="space-y-3">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="bg-white rounded-xl shadow-sm overflow-hidden"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+            {/* 封面图 */}
+            {item.image && (
+              <div className="relative aspect-video w-full bg-gray-100">
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  className="object-cover w-full h-full"
+                />
+              </div>
+            )}
+
+            <div className="p-3">
+              {/* 标题显示/编辑 */}
+              {item.isEditing ? (
+                <div className="mb-2">
+                  <input
+                    type="text"
+                    defaultValue={item.title}
+                    id={`edit-${item.id}`}
+                    className="w-full p-2 border rounded-lg text-gray-900 text-sm"
+                    autoFocus
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        const input = document.getElementById(
+                          `edit-${item.id}`
+                        ) as HTMLInputElement;
+                        saveEdit(item.id, input.value);
+                      }}
+                      className="text-sm bg-black text-white px-3 py-1 rounded"
+                    >
+                      保存
+                    </button>
+                    <button
+                      onClick={() => cancelEdit(item.id)}
+                      className="text-sm bg-gray-200 text-gray-900 px-3 py-1 rounded"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="font-medium mb-1 text-gray-900 line-clamp-2">
+                    {item.title}
+                  </div>
+                  <div className="text-xs text-gray-700 mb-2 flex items-center gap-2">
+                    <PlatformIcon platform={item.platform} size={16} />
+                    {getPlatformName(item.platform)}
+                    {item.needsEdit && (
+                      <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-xs">
+                        待编辑
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-900 text-sm"
+                    >
+                      打开
+                    </a>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEdit(item.id)}
+                        className="text-sm bg-gray-100 text-gray-900 px-2 py-1 rounded"
+                      >
+                        编辑
+                      </button>
+                      <button
+                        onClick={() => deleteItem(item.id)}
+                        className="text-sm bg-red-50 text-red-500 px-2 py-1 rounded"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 剪贴板检测提示 */}
+      {showClipboardPrompt && detectedUrl && (
+        <ClipboardPrompt
+          url={detectedUrl}
+          platform={detectPlatform(detectedUrl)}
+          onConfirm={() => addItem(detectedUrl)}
+          onCancel={() => {
+            setShowClipboardPrompt(false);
+            setDetectedUrl(null);
+          }}
+        />
+      )}
     </div>
   );
 }
