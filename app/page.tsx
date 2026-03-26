@@ -271,12 +271,22 @@ export default function HomePage() {
 
       {/* 输入框 */}
       <div className="flex gap-2 mb-4">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="粘贴链接..."
-          className="flex-1 p-2 border rounded-lg text-gray-900 placeholder:text-gray-400"
-        />
+        <div className="relative flex-1">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="粘贴链接..."
+            className="w-full p-2 pr-8 border rounded-lg text-gray-900 placeholder:text-gray-400"
+          />
+          {input && (
+            <button
+              onClick={() => setInput("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          )}
+        </div>
         <button
           onClick={() => addItem()}
           className="bg-black text-white px-4 rounded-lg"
