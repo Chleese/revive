@@ -30,6 +30,8 @@ export default function HomePage() {
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
   const [showClipboardPrompt, setShowClipboardPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const isMounted = useRef(false);
 
   // 从 Supabase 加载数据
@@ -39,9 +41,17 @@ export default function HomePage() {
   }, []);
 
   const loadItems = async () => {
+    setLoadError(false);
+    setLoading(true);
     try {
-      const data = await getUserCollections(ANONYMOUS_USER_ID);
-      const items = data.map((item) => ({
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("加载超时")), 8000)
+      );
+      const data = (await Promise.race([
+        getUserCollections(ANONYMOUS_USER_ID),
+        timeoutPromise,
+      ])) as Awaited<ReturnType<typeof getUserCollections>>;
+      const items = data.map((item: { id?: string; title: string; url: string; platform: string; image?: string; needs_edit?: boolean }) => ({
         id: item.id!,
         title: item.title,
         url: item.url,
@@ -52,6 +62,7 @@ export default function HomePage() {
       setItems(items);
     } catch (error) {
       console.error("Failed to load items:", error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -66,7 +77,19 @@ export default function HomePage() {
         setShowClipboardPrompt(true);
       }
     } catch {
-      // 忽略
+      // 忽略（iOS Safari 不允许无手势调用）
+    }
+  };
+
+  // 手动粘贴按钮（兼容 iOS Safari）
+  const pasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setInput(text);
+      }
+    } catch {
+      alert("无法读取剪贴板，请手动粘贴");
     }
   };
 
@@ -135,10 +158,15 @@ export default function HomePage() {
   };
 
   const addItem = async (url?: string) => {
+    if (submitting) return;
+    setSubmitting(true);
     const extractedUrl = extractUrl(input);
     const targetUrl = url || extractedUrl || input;
 
-    if (!targetUrl) return;
+    if (!targetUrl) {
+      setSubmitting(false);
+      return;
+    }
 
     // 检测平台
     const platform = detectPlatform(targetUrl);
@@ -212,6 +240,8 @@ export default function HomePage() {
     } catch (error) {
       console.error("Failed to add item:", error);
       alert("添加失败，请重试");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -265,6 +295,22 @@ export default function HomePage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-gray-900 mb-3">加载失败，请检查网络</div>
+          <button
+            onClick={loadItems}
+            className="bg-black text-white px-4 py-2 rounded-lg"
+          >
+            重试
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <h1 className="text-xl font-bold mb-4 text-gray-900">Revive</h1>
@@ -288,10 +334,17 @@ export default function HomePage() {
           )}
         </div>
         <button
-          onClick={() => addItem()}
-          className="bg-black text-white px-4 rounded-lg"
+          onClick={pasteFromClipboard}
+          className="bg-gray-100 text-gray-900 px-3 rounded-lg"
         >
-          添加
+          粘贴
+        </button>
+        <button
+          onClick={() => addItem()}
+          disabled={submitting}
+          className="bg-black text-white px-4 rounded-lg disabled:opacity-50"
+        >
+          {submitting ? "添加中..." : "添加"}
         </button>
       </div>
 
@@ -377,7 +430,9 @@ export default function HomePage() {
                         编辑
                       </button>
                       <button
-                        onClick={() => deleteItem(item.id)}
+                        onClick={() => {
+                          if (confirm("确定删除吗？")) deleteItem(item.id);
+                        }}
                         className="text-sm bg-red-50 text-red-500 px-2 py-1 rounded"
                       >
                         删除
