@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { detectPlatform, Platform, getPlatformName } from "./utils/platform";
 import { ClipboardPrompt } from "./components/ClipboardPrompt";
 import { PlatformIcon } from "./components/PlatformIcon";
+import { useAuth } from "./components/AuthProvider";
+import { createClient } from "./lib/supabase/client";
 import {
   getUserCollections,
   addCollection,
   updateCollection,
   deleteCollection,
 } from "./lib/operations";
-
-// 匿名用户ID（你自用阶段，以后改为登录用户）
-const ANONYMOUS_USER_ID = "user-revive-001";
 
 type Item = {
   id: string;
@@ -25,30 +25,35 @@ type Item = {
 };
 
 export default function HomePage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [input, setInput] = useState("");
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
   const [showClipboardPrompt, setShowClipboardPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const isMounted = useRef(false);
 
   // 从 Supabase 加载数据
   useEffect(() => {
-    isMounted.current = true;
-    loadItems();
-  }, []);
+    if (!authLoading && user) {
+      loadItems();
+    } else if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [authLoading, user]);
 
   const loadItems = async () => {
     setLoadError(false);
     setLoading(true);
     try {
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("加载超时")), 8000)
+        setTimeout(() => reject(new Error("加载超时")), 15000)
       );
       const data = (await Promise.race([
-        getUserCollections(ANONYMOUS_USER_ID),
+        getUserCollections(user!.id),
         timeoutPromise,
       ])) as Awaited<ReturnType<typeof getUserCollections>>;
       const items = data.map((item: { id?: string; title: string; url: string; platform: string; image?: string; needs_edit?: boolean }) => ({
@@ -63,6 +68,9 @@ export default function HomePage() {
     } catch (error) {
       console.error("Failed to load items:", error);
       setLoadError(true);
+      if (error instanceof Error) {
+        setErrorMsg(error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -206,7 +214,7 @@ export default function HomePage() {
     // 保存到 Supabase
     try {
       const data = await addCollection({
-        user_id: ANONYMOUS_USER_ID,
+        user_id: user!.id,
         title,
         url: targetUrl,
         platform,
@@ -287,7 +295,7 @@ export default function HomePage() {
     );
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
         <div className="text-gray-900">加载中...</div>
@@ -295,11 +303,16 @@ export default function HomePage() {
     );
   }
 
+  if (!user) {
+    return null;
+  }
+
   if (loadError) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
         <div className="text-center">
           <div className="text-gray-900 mb-3">加载失败，请检查网络</div>
+          {errorMsg && <div className="text-xs text-gray-400 mb-2">{errorMsg}</div>}
           <button
             onClick={loadItems}
             className="bg-black text-white px-4 py-2 rounded-lg"
@@ -313,7 +326,19 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      <h1 className="text-xl font-bold mb-4 text-gray-900">Revive</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-bold text-gray-900">Revive</h1>
+        <button
+          onClick={async () => {
+            const supabase = createClient();
+            await supabase.auth.signOut();
+            router.push("/login");
+          }}
+          className="text-sm text-gray-500"
+        >
+          登出
+        </button>
+      </div>
 
       {/* 输入框 */}
       <div className="flex gap-2 mb-4">

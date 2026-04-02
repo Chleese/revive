@@ -1,4 +1,4 @@
-import { getSupabase } from './supabase';
+import { createClient } from './supabase/client';
 
 export type CollectionItem = {
   id?: string;
@@ -15,7 +15,7 @@ export type CollectionItem = {
  * 获取用户的所有收藏
  */
 export async function getUserCollections(userId: string) {
-  const { data, error } = await getSupabase()
+  const { data, error } = await createClient()
     .from('collections')
     .select('*')
     .eq('user_id', userId)
@@ -29,7 +29,7 @@ export async function getUserCollections(userId: string) {
  * 添加收藏
  */
 export async function addCollection(item: Omit<CollectionItem, 'id' | 'created_at'>) {
-  const { data, error } = await getSupabase()
+  const { data, error } = await createClient()
     .from('collections')
     .insert(item)
     .select()
@@ -43,7 +43,7 @@ export async function addCollection(item: Omit<CollectionItem, 'id' | 'created_a
  * 更新收藏
  */
 export async function updateCollection(id: string, updates: Partial<CollectionItem>) {
-  const { data, error } = await getSupabase()
+  const { data, error } = await createClient()
     .from('collections')
     .update(updates)
     .eq('id', id)
@@ -58,7 +58,7 @@ export async function updateCollection(id: string, updates: Partial<CollectionIt
  * 删除收藏
  */
 export async function deleteCollection(id: string) {
-  const { error } = await getSupabase()
+  const { error } = await createClient()
     .from('collections')
     .delete()
     .eq('id', id);
