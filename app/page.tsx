@@ -40,8 +40,6 @@ export default function HomePage() {
   useEffect(() => {
     if (!authLoading && user) {
       loadItems();
-    } else if (!authLoading && !user) {
-      router.push("/login");
     }
   }, [authLoading, user]);
 

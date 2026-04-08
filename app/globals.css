@@ -24,3 +24,45 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes scaleIn {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
+@keyframes check {
+  from { stroke-dasharray: 0 24; }
+  to { stroke-dasharray: 24 0; }
+}
+
+/* 背景方案1: 微光粒子 */
+@keyframes float-1 {
+  0%, 100% { transform: translate(0, 0); opacity: 0.4; }
+  50% { transform: translate(25px, -35px); opacity: 1; }
+}
+@keyframes float-2 {
+  0%, 100% { transform: translate(0, 0); opacity: 0.6; }
+  50% { transform: translate(-20px, 30px); opacity: 1; }
+}
+@keyframes float-3 {
+  0%, 100% { transform: translate(0, 0); opacity: 0.3; }
+  50% { transform: translate(15px, 20px); opacity: 0.8; }
+}
+
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 0 4px 1px rgba(255,255,255,0.3);
+}
+
+/* 背景方案3: 动态画线网格 */
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes gridFade {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
