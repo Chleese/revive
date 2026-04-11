@@ -17,24 +17,31 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   useEffect(() => {
-    // 获取当前登录状态
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
+    let isMounted = true;
+
+    // 客户端首屏优先读取本地 session，避免每次都阻塞在远程鉴权请求上。
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
+      setUser(session?.user ?? null);
       setLoading(false);
     });
 
     // 监听登录状态变化（登录/登出）
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        if (!isMounted) return;
         setUser(session?.user ?? null);
         setLoading(false);
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [supabase]);
 
   return (

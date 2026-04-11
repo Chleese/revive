@@ -1,45 +1,300 @@
-import { Platform } from "../utils/platform";
+import type { ReactElement } from "react";
+import type { Platform } from "@/lib/platform";
+
+export type PlatformIconVariant =
+  | "default"
+  | "xhs_original"
+  | "xhs_bold"
+  | "xhs_badge"
+  | "xhs_red"
+  | "xhs_shu";
 
 interface PlatformIconProps {
   platform: Platform;
   size?: number;
+  variant?: PlatformIconVariant;
 }
 
-/**
- * 平台图标组件
- */
-export function PlatformIcon({ platform, size = 16 }: PlatformIconProps) {
-  const icons: Record<Platform, string> = {
-    douyin: `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
-      <path fill="#25F4EE" d="M16.6 5.82s.47-2.82-1.72-4.82L12.72 3c1.75 1.73 1.66 4.28 1.66 4.28v8.44a4.06 4.06 0 0 1-2.17 3.59 4.04 4.04 0 0 1-5.5-1.59 4.05 4.05 0 0 1 1.49-5.53 4.03 4.03 0 0 1 4.04.14V9.4a7.35 7.35 0 0 0-3.28-.77A7.35 7.35 0 0 0 1.6 16a7.35 7.35 0 0 0 7.36 7.35 7.35 7.35 0 0 0 7.35-7.35V9.67a9.24 9.24 0 0 0 5.4 1.73V7.74a5.88 5.88 0 0 1-5.11-1.92z"/>
-      <path fill="#FE2C55" d="M16.6 5.82s.47-2.82-1.72-4.82L12.72 3c1.75 1.73 1.66 4.28 1.66 4.28v8.44a4.06 4.06 0 0 1-2.17 3.59 4.04 4.04 0 0 1-5.5-1.59 4.05 4.05 0 0 1 1.49-5.53 4.03 4.03 0 0 1 4.04.14V9.4a7.35 7.35 0 0 0-3.28-.77A7.35 7.35 0 0 0 1.6 16a7.35 7.35 0 0 0 7.36 7.35 7.35 7.35 0 0 0 7.35-7.35V9.67a9.24 9.24 0 0 0 5.4 1.73V7.74a5.88 5.88 0 0 1-5.11-1.92z" transform="translate(0.6,0.7)"/>
-      <path fill="#FFFFFF" d="M16.6 5.82s.47-2.82-1.72-4.82L12.72 3c1.75 1.73 1.66 4.28 1.66 4.28v8.44a4.06 4.06 0 0 1-2.17 3.59 4.04 4.04 0 0 1-5.5-1.59 4.05 4.05 0 0 1 1.49-5.53 4.03 4.03 0 0 1 4.04.14V9.4a7.35 7.35 0 0 0-3.28-.77A7.35 7.35 0 0 0 1.6 16a7.35 7.35 0 0 0 7.36 7.35 7.35 7.35 0 0 0 7.35-7.35V9.67a9.24 9.24 0 0 0 5.4 1.73V7.74a5.88 5.88 0 0 1-5.11-1.92z"/>
-    </svg>`,
-    xiaohongshu: `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
-      <rect fill="#FF2442" width="24" height="24" rx="6"/>
-      <text x="12" y="17" text-anchor="middle" fill="#FFFFFF" font-size="12" font-weight="bold">小红书</text>
-    </svg>`,
-    bilibili: `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
-      <path fill="#00A1D6" d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.77 1.56-3.773s2.262-1.524 3.773-1.56h8.749v.854H5.333c-1.238.018-2.267.434-3.086 1.246-.82.813-1.243 1.837-1.27 3.074v7.52c.027 1.238.45 2.262 1.27 3.075.819.812 1.848 1.228 3.086 1.246h13.334c1.238-.018 2.267-.434 3.086-1.246.82-.813 1.243-1.837 1.27-3.075v-7.52c-.027-1.237-.45-2.261-1.27-3.074-.819-.812-1.848-1.228-3.086-1.246h-.773v-.854zm-3.413 3.52h.854v3.094h2.56v.854h-3.413V8.172zm-5.333 0h.854v2.133h2.56v-2.133h.854v3.947h-.854v-1.96h-2.56v1.96h-.854V8.172z"/>
-    </svg>`,
-    youtube: `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
-      <path fill="#FF0000" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-    </svg>`,
-    weibo: `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
-      <path fill="#E6162D" d="M10.098 20c-3.677.062-6.784-1.382-7.098-4.093-.078-.646.04-1.278.27-1.86.256-.528.636-1.01 1.118-1.428 2.45-2.124 6.487-2.746 9.556-1.254 1.735.828 2.704 2.324 2.704 4.11 0 2.85-2.537 5.503-6.636 5.503-.878 0-1.704-.1-2.453-.283-.847.906-1.913 1.57-3.06 1.932-1.244.393-2.484.228-3.46-.406.68.08 1.398.113 2.094-.084 1.348-.388 2.507-1.228 3.337-2.365.735-.992 1.05-2.17.884-3.372-.167-1.218-.843-2.227-1.927-2.85-1.45-.83-3.362-1.153-5.273-.865-.764.115-1.493.342-2.146.706-.535.295-1.03.64-1.59.883-.58.25-1.19.44-1.815.56-1.396.265-2.737.158-3.924-.353-.095-.04-.19-.083-.283-.127"/>
-    </svg>`,
-    wechat: `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
-      <path fill="#07C160" d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.823 1.932-6.588.135-.132.27-.262.407-.39a.567.567 0 0 1 .786.008c1.228 1.228 2.766 2.02 4.59 2.308.276.043.557.065.842.065h.08c3.925 0 7.254-2.9 7.254-6.615 0-3.71-3.388-6.734-7.603-6.734z"/>
-    </svg>`,
-    other: `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
-      <path fill="#06B6D4" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-    </svg>`,
+function renderXiaohongshuIcon(
+  size: number,
+  variant: PlatformIconVariant
+): ReactElement {
+  const iconProps = {
+    viewBox: "0 0 24 24",
+    width: size,
+    height: size,
+    xmlns: "http://www.w3.org/2000/svg",
+    focusable: "false" as const,
+    shapeRendering: "geometricPrecision" as const,
   };
 
+  if (variant === "xhs_badge") {
+    return (
+      <svg {...iconProps}>
+        <rect x="2" y="2" width="20" height="20" rx="5" fill="#FF2442" />
+        <rect x="4.3" y="5" width="15.4" height="14" rx="3.8" fill="#FFFFFF" />
+        <rect
+          x="4.3"
+          y="5"
+          width="15.4"
+          height="14"
+          rx="3.8"
+          fill="none"
+          stroke="#FF2442"
+          strokeWidth="1.15"
+        />
+        <text
+          x="12"
+          y="11.9"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="#FF2442"
+          fontSize="4.7"
+          fontWeight="800"
+          fontFamily="PingFang SC,Hiragino Sans GB,Microsoft YaHei,sans-serif"
+          transform="rotate(-5 12 12)"
+        >
+          小红书
+        </text>
+        <rect
+          x="7.1"
+          y="14.3"
+          width="9.8"
+          height="1.15"
+          rx="0.575"
+          fill="#FF2442"
+          transform="rotate(-5 12 12)"
+        />
+      </svg>
+    );
+  }
+
+  if (variant === "xhs_original") {
+    return (
+      <svg {...iconProps}>
+        <rect fill="#FF2442" width="24" height="24" rx="6" />
+        <text
+          x="12"
+          y="15.5"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="#FFFFFF"
+          fontSize="9"
+          fontWeight="700"
+          fontFamily="PingFang SC,Hiragino Sans GB,Microsoft YaHei,sans-serif"
+          letterSpacing="0.5"
+        >
+          小红书
+        </text>
+      </svg>
+    );
+  }
+
+  if (variant === "xhs_red") {
+    return (
+      <svg {...iconProps}>
+        <rect fill="#FF2442" width="24" height="24" rx="6" />
+        <text
+          x="12"
+          y="12.15"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="#FFFFFF"
+          fontSize="7.3"
+          fontWeight="900"
+          fontFamily="Arial Black,Helvetica Neue,Arial,sans-serif"
+          fontStyle="italic"
+          letterSpacing="-0.55"
+          lengthAdjust="spacingAndGlyphs"
+          textLength="13.5"
+        >
+          RED
+        </text>
+      </svg>
+    );
+  }
+
+  if (variant === "xhs_shu") {
+    return (
+      <svg {...iconProps}>
+        <rect fill="#FF2442" width="24" height="24" rx="6" />
+        <text
+          x="12"
+          y="12.2"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="#FFFFFF"
+          fontSize="12.8"
+          fontWeight="900"
+          fontFamily="PingFang SC,Hiragino Sans GB,Microsoft YaHei,sans-serif"
+          paintOrder="stroke"
+          stroke="#E11D48"
+          strokeWidth="0.5"
+          strokeLinejoin="round"
+        >
+          书
+        </text>
+      </svg>
+    );
+  }
+
   return (
-    <span
-      className="inline-block"
-      dangerouslySetInnerHTML={{ __html: icons[platform] || icons.other }}
-    />
+    <svg {...iconProps}>
+      <rect fill="#FF2442" width="24" height="24" rx="6" />
+      <text
+        x="12"
+        y="12.2"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#FFFFFF"
+        fontSize="10"
+        fontWeight="800"
+        fontFamily="PingFang SC,Hiragino Sans GB,Microsoft YaHei,sans-serif"
+        letterSpacing="-0.25"
+        lengthAdjust="spacingAndGlyphs"
+        textLength="15.4"
+        paintOrder="stroke"
+        stroke="#E11D48"
+        strokeWidth="0.45"
+        strokeLinejoin="round"
+      >
+        小红书
+      </text>
+    </svg>
+  );
+}
+
+function renderPlatformIcon(
+  platform: Platform,
+  size: number,
+  variant: PlatformIconVariant
+): ReactElement {
+  const iconProps = {
+    viewBox: "0 0 24 24",
+    width: size,
+    height: size,
+    xmlns: "http://www.w3.org/2000/svg",
+    focusable: "false" as const,
+  };
+
+  switch (platform) {
+    case "douyin":
+      return (
+        <svg {...iconProps}>
+          <path
+            fill="#25F4EE"
+            transform="translate(2.55 1.95) scale(0.82)"
+            d="M16.6 5.82s.47-2.82-1.72-4.82L12.72 3c1.75 1.73 1.66 4.28 1.66 4.28v8.44a4.06 4.06 0 0 1-2.17 3.59 4.04 4.04 0 0 1-5.5-1.59 4.05 4.05 0 0 1 1.49-5.53 4.03 4.03 0 0 1 4.04.14V9.4a7.35 7.35 0 0 0-3.28-.77A7.35 7.35 0 0 0 1.6 16a7.35 7.35 0 0 0 7.36 7.35 7.35 7.35 0 0 0 7.35-7.35V9.67a9.24 9.24 0 0 0 5.4 1.73V7.74a5.88 5.88 0 0 1-5.11-1.92z"
+          />
+          <path
+            fill="#FE2C55"
+            transform="translate(3.35 1.2) scale(0.82)"
+            d="M16.6 5.82s.47-2.82-1.72-4.82L12.72 3c1.75 1.73 1.66 4.28 1.66 4.28v8.44a4.06 4.06 0 0 1-2.17 3.59 4.04 4.04 0 0 1-5.5-1.59 4.05 4.05 0 0 1 1.49-5.53 4.03 4.03 0 0 1 4.04.14V9.4a7.35 7.35 0 0 0-3.28-.77A7.35 7.35 0 0 0 1.6 16a7.35 7.35 0 0 0 7.36 7.35 7.35 7.35 0 0 0 7.35-7.35V9.67a9.24 9.24 0 0 0 5.4 1.73V7.74a5.88 5.88 0 0 1-5.11-1.92z"
+          />
+          <path
+            fill="#111111"
+            transform="translate(2.95 1.55) scale(0.82)"
+            d="M16.6 5.82s.47-2.82-1.72-4.82L12.72 3c1.75 1.73 1.66 4.28 1.66 4.28v8.44a4.06 4.06 0 0 1-2.17 3.59 4.04 4.04 0 0 1-5.5-1.59 4.05 4.05 0 0 1 1.49-5.53 4.03 4.03 0 0 1 4.04.14V9.4a7.35 7.35 0 0 0-3.28-.77A7.35 7.35 0 0 0 1.6 16a7.35 7.35 0 0 0 7.36 7.35 7.35 7.35 0 0 0 7.35-7.35V9.67a9.24 9.24 0 0 0 5.4 1.73V7.74a5.88 5.88 0 0 1-5.11-1.92z"
+          />
+        </svg>
+      );
+    case "xiaohongshu":
+      return renderXiaohongshuIcon(size, variant === "default" ? "xhs_badge" : variant);
+    case "bilibili":
+      return (
+        <svg {...iconProps}>
+          <path fill="#00A1D6" d="M5 7h14a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-8a3 3 0 0 1 3-3z" />
+          <path fill="#00A1D6" d="M7 7L4.5 3h2.5l2.5 4H7zm8 0l2.5-4H20l-2.5 4h-2.5z" />
+          <rect x="8" y="12" width="2.5" height="2" rx="0.5" fill="#fff" />
+          <rect x="13.5" y="12" width="2.5" height="2" rx="0.5" fill="#fff" />
+        </svg>
+      );
+    case "youtube":
+      return (
+        <svg {...iconProps}>
+          <path fill="#FF0000" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
+          <path fill="#FFFFFF" d="M9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+        </svg>
+      );
+    case "weibo":
+      return (
+        <svg {...iconProps}>
+          <rect x="2" y="2" width="20" height="20" rx="5" fill="#FFF4D6" />
+          <path
+            fill="#E6162D"
+            d="M6.2 15.2c0-2.55 2.62-4.72 6.07-4.72 3.27 0 5.9 1.93 5.9 4.38 0 2.59-2.5 4.64-5.84 4.64-.92 0-1.78-.14-2.54-.4l-2.22.9.55-1.72c-1.22-.76-1.94-1.85-1.94-3.08z"
+          />
+          <ellipse cx="11.8" cy="15.1" rx="3.15" ry="2.02" fill="#FFFFFF" />
+          <ellipse cx="11.9" cy="15.15" rx="1.12" ry="1.08" fill="#232323" />
+          <circle cx="11.45" cy="14.7" r="0.28" fill="#FFFFFF" />
+          <path
+            d="M16.2 8.15c1.52-.1 2.72.42 3.36 1.44.52.82.52 1.94-.03 2.95"
+            fill="none"
+            stroke="#F6A000"
+            strokeWidth="1.65"
+            strokeLinecap="round"
+          />
+          <path
+            d="M16.25 5.55c2.48-.23 4.56.72 5.53 2.41.82 1.41.8 3.11-.08 4.48"
+            fill="none"
+            stroke="#F6A000"
+            strokeWidth="1.95"
+            strokeLinecap="round"
+          />
+          <circle cx="15.25" cy="7.55" r="0.7" fill="#F6A000" />
+        </svg>
+      );
+    case "wechat":
+      return (
+        <svg {...iconProps}>
+          <path fill="#07C160" d="M8.5 5C4.9 5 2 7.5 2 10.5c0 1.7.9 3.2 2.3 4.2l-.6 2.3c-.1.3.2.5.5.4l2.7-1.3c.8.2 1.6.3 2.4.3.4 0 .7 0 1.1-.1-.3-.7-.4-1.4-.4-2.2 0-3.3 3-6 6.7-6 .4 0 .7 0 1.1.1C17 6.3 13.2 5 8.5 5z" />
+          <circle cx="6.5" cy="10" r="0.8" fill="#fff" />
+          <circle cx="10.5" cy="10" r="0.8" fill="#fff" />
+          <path fill="#07C160" d="M16 10c-2.8 0-5 2-5 4.5s2.2 4.5 5 4.5c.6 0 1.2-.1 1.7-.3l1.8.9c.2.1.4-.1.3-.3l-.4-1.5c1-.8 1.6-2 1.6-3.3 0-2.5-2.2-4.5-5-4.5z" />
+          <circle cx="14.5" cy="14" r="0.6" fill="#fff" />
+          <circle cx="17.5" cy="14" r="0.6" fill="#fff" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...iconProps}>
+          <rect x="2" y="2" width="20" height="20" rx="5" fill="#475569" />
+          <path
+            d="M8.1 15.9 6.7 17.3a2.55 2.55 0 0 1-3.6-3.6l2.45-2.45a2.55 2.55 0 0 1 3.6 0"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="m15.9 8.1 1.4-1.4a2.55 2.55 0 1 1 3.6 3.6l-2.45 2.45a2.55 2.55 0 0 1-3.6 0"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="m8.95 15.05 6.1-6.1"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+  }
+}
+
+export function PlatformIcon({
+  platform,
+  size = 16,
+  variant = "default",
+}: PlatformIconProps) {
+  return (
+    <span className="inline-flex shrink-0 align-middle leading-none" aria-hidden="true">
+      {renderPlatformIcon(platform, size, variant)}
+    </span>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { createClient } from "@/app/lib/supabase/client";
 
 type BgStyle = "particles" | "grid";
@@ -16,26 +15,15 @@ function BackgroundEffect({ style }: { style: BgStyle }) {
 }
 
 function ParticlesBg() {
-  const [particles, setParticles] = useState<Array<{
-    id: number; left: string; top: string; size: number;
-    delay: string; duration: string; anim: string;
-  }> | null>(null);
-
-  useEffect(() => {
-    setParticles(
-      Array.from({ length: 40 }, (_, i) => ({
-        id: i,
-        left: `${Math.random() * 100}%`,
-        top: `${Math.random() * 100}%`,
-        size: Math.random() * 2 + 1,
-        delay: `${Math.random() * 5}s`,
-        duration: `${Math.random() * 4 + 4}s`,
-        anim: [`float-1`, `float-2`, `float-3`][i % 3],
-      }))
-    );
-  }, []);
-
-  if (!particles) return null;
+  const particles = Array.from({ length: 40 }, (_, i) => ({
+    id: i,
+    left: `${(i * 17) % 100}%`,
+    top: `${(i * 29) % 100}%`,
+    size: ((i % 4) + 1) * 0.8,
+    delay: `${(i % 5) * 0.7}s`,
+    duration: `${4 + (i % 4)}s`,
+    anim: ["float-1", "float-2", "float-3"][i % 3],
+  }));
 
   return (
     <>
@@ -113,8 +101,20 @@ const BG_OPTIONS: { key: BgStyle; label: string }[] = [
   { key: "grid", label: "画线网格" },
 ];
 
+async function waitForSession(client: ReturnType<typeof createClient>) {
+  for (let i = 0; i < 10; i += 1) {
+    const { data } = await client.auth.getSession();
+    if (data.session) {
+      return true;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+
+  return false;
+}
+
 export default function LoginPage() {
-  const router = useRouter();
   const supabase = createClient();
 
   const [email, setEmail] = useState("");
@@ -149,8 +149,8 @@ export default function LoginPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push("/");
-        router.refresh();
+        await waitForSession(supabase);
+        window.location.replace("/");
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "操作失败");
