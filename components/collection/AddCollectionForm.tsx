@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import type { ClipboardEvent, RefObject } from "react";
 
 type AddCollectionFormProps = {
   input: string;
@@ -8,6 +8,7 @@ type AddCollectionFormProps = {
   clipboardSupported: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
   onInputChange: (value: string) => void;
+  onInputPaste: (value: string) => void;
   onClear: () => void;
   onPaste: () => void;
   onSubmit: () => void;
@@ -19,10 +20,18 @@ export function AddCollectionForm({
   clipboardSupported,
   inputRef,
   onInputChange,
+  onInputPaste,
   onClear,
   onPaste,
   onSubmit,
 }: AddCollectionFormProps) {
+  const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const pastedText = event.clipboardData.getData("text");
+    if (pastedText) {
+      onInputPaste(pastedText);
+    }
+  };
+
   return (
     <div className="mb-4">
       <div className="flex gap-2">
@@ -31,6 +40,7 @@ export function AddCollectionForm({
             ref={inputRef}
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
+            onPaste={handlePaste}
             placeholder="粘贴链接..."
             className="w-full p-2 pr-8 border rounded-lg text-gray-900 placeholder:text-gray-400"
           />

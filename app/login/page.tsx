@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/app/lib/supabase/client";
+import { authService } from "@/lib/services/auth";
 
 type BgStyle = "particles" | "grid";
 
@@ -101,22 +101,7 @@ const BG_OPTIONS: { key: BgStyle; label: string }[] = [
   { key: "grid", label: "画线网格" },
 ];
 
-async function waitForSession(client: ReturnType<typeof createClient>) {
-  for (let i = 0; i < 10; i += 1) {
-    const { data } = await client.auth.getSession();
-    if (data.session) {
-      return true;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 120));
-  }
-
-  return false;
-}
-
 export default function LoginPage() {
-  const supabase = createClient();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isRegister, setIsRegister] = useState(false);
@@ -134,22 +119,19 @@ export default function LoginPage() {
 
     try {
       if (isReset) {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
-        if (error) throw error;
+        await authService.resetPasswordForEmail(
+          email,
+          `${window.location.origin}/reset-password`
+        );
         setSuccess("重置链接已发送到您的邮箱");
         setError("");
       } else if (isRegister) {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
+        await authService.signUp(email, password);
         setError("注册成功！请登录");
         setIsRegister(false);
         setPassword("");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        await waitForSession(supabase);
+        await authService.signInWithPassword(email, password);
         window.location.replace("/");
       }
     } catch (err: unknown) {

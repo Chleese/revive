@@ -8,20 +8,25 @@ const XHS_NOISE_PATTERNS = [
   /快来看.*$/i,
   /一起看看.*$/i,
 ];
+const XHS_IGNORED_TITLES = [/^小红书$/i, /^app$/i];
+
+function isUsefulXhsTitle(title: string): boolean {
+  return isMeaningfulTitle(title) && !XHS_IGNORED_TITLES.some((pattern) => pattern.test(title));
+}
 
 export function parseXiaohongshuShareText(
   rawInput: string,
   url: string
 ): ShareTextMetadata | null {
-  const exactBracketMatch = rawInput.match(/【([^】]+)】/);
-  if (exactBracketMatch?.[1]) {
-    const title = sanitizeTitle(exactBracketMatch[1]);
-    if (isMeaningfulTitle(title)) {
+  const bracketMatches = [...rawInput.matchAll(/【([^】]+)】/g)];
+  for (const match of bracketMatches) {
+    const title = sanitizeTitle(match[1] ?? "");
+    if (isUsefulXhsTitle(title)) {
       return {
         title,
         metadataSource: "share_text",
         metadataConfidence: 0.82,
-      };
+      }
     }
   }
 
@@ -33,7 +38,7 @@ export function parseXiaohongshuShareText(
   const lines = cleaned
     .split("\n")
     .map((line) => sanitizeTitle(line))
-    .filter((line) => isMeaningfulTitle(line));
+    .filter((line) => isUsefulXhsTitle(line));
 
   const title = lines.sort((a, b) => b.length - a.length)[0];
 

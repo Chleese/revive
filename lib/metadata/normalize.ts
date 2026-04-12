@@ -1,10 +1,24 @@
 import { getPlatformName, type Platform } from "@/lib/platform";
 
-const URL_PATTERN = /(https?:\/\/[^\s]+)/i;
+const URL_PATTERN = /(https?:\/\/[^\s<>"'`]+)/i;
+const TRAILING_URL_CHARS = /[，。！？；：、）】》」』”’>,.!?;:)\]}]+$/u;
+
+function trimTrailingUrlChars(url: string): string {
+  let result = url.trim();
+
+  while (TRAILING_URL_CHARS.test(result)) {
+    result = result.replace(TRAILING_URL_CHARS, "");
+  }
+
+  return result;
+}
 
 export function extractUrl(text: string): string | null {
   const match = text.match(URL_PATTERN);
-  return match?.[1] ?? null;
+  if (!match?.[1]) return null;
+
+  const normalizedUrl = trimTrailingUrlChars(match[1]);
+  return normalizedUrl || null;
 }
 
 export function stripUrl(text: string, url: string): string {

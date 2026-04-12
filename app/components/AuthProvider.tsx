@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
-import { createClient } from "@/app/lib/supabase/client";
+import { authService } from "@/lib/services/auth";
 
 type AuthContextType = {
   user: User | null;
@@ -17,20 +17,19 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [supabase] = useState(() => createClient());
 
   useEffect(() => {
     let isMounted = true;
 
     // 客户端首屏优先读取本地 session，避免每次都阻塞在远程鉴权请求上。
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    authService.getCurrentUser().then((currentUser) => {
       if (!isMounted) return;
-      setUser(session?.user ?? null);
+      setUser(currentUser);
       setLoading(false);
     });
 
     // 监听登录状态变化（登录/登出）
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const unsubscribe = authService.onAuthStateChange(
       (_event, session) => {
         if (!isMounted) return;
         setUser(session?.user ?? null);
@@ -40,9 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      unsubscribe();
     };
-  }, [supabase]);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading }}>

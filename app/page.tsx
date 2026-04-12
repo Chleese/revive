@@ -5,31 +5,26 @@ import { detectPlatform } from "@/lib/platform";
 import { extractUrl } from "@/lib/metadata/normalize";
 import type { MetadataResult } from "@/lib/metadata/types";
 import {
-  addCollection,
-  deleteCollection,
-  updateCollection,
-} from "@/lib/collections/mutations";
-import {
-  getUserCollections,
-} from "@/lib/collections/queries";
-import {
   type CollectionRecord,
   mapCollectionRecordToItemView,
   type CollectionItemView,
 } from "@/lib/collections/types";
+import { authService } from "@/lib/services/auth";
+import { collectionService } from "@/lib/services/collections";
+import { metadataService } from "@/lib/services/metadata";
 import { AddCollectionForm } from "@/components/collection/AddCollectionForm";
 import { CollectionList } from "@/components/collection/CollectionList";
 import { ClipboardPrompt } from "./components/ClipboardPrompt";
 import { useAuth } from "./components/AuthProvider";
-import { createClient } from "./lib/supabase/client";
 
 export default function HomePage() {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<CollectionItemView[]>([]);
   const [input, setInput] = useState("");
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const [detectedRawInput, setDetectedRawInput] = useState<string | null>(null);
   const [showClipboardPrompt, setShowClipboardPrompt] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -37,25 +32,31 @@ export default function HomePage() {
   const attemptedImageBackfillIds = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const resolveRemoteMetadata = useCallback(async (rawInput: string): Promise<MetadataResult | null> => {
+  const handleInputPaste = useCallback((value: string) => {
+    setInput(value);
+  }, []);
+
+  const checkClipboard = useCallback(async () => {
     try {
-      const response = await fetch("/api/metadata", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ rawInput }),
-      });
+      const text = await navigator.clipboard.readText();
+      const extractedUrl = extractUrl(text.trim());
+      const clipboardUrl =
+        extractedUrl ?? (text.trim().startsWith("http://") || text.trim().startsWith("https://")
+          ? text.trim()
+          : null);
 
-      if (!response.ok) {
-        return null;
+      if (clipboardUrl) {
+        setDetectedRawInput(text.trim());
+        setDetectedUrl(clipboardUrl);
+        setShowClipboardPrompt(true);
       }
-
-      return (await response.json()) as MetadataResult;
-    } catch (error) {
-      console.error("Failed to resolve metadata:", error);
-      return null;
+    } catch {
+      // 某些浏览器要求用户手势后才能读取剪贴板。
     }
+  }, []);
+
+  const resolveRemoteMetadata = useCallback(async (rawInput: string): Promise<MetadataResult | null> => {
+    return metadataService.resolve(rawInput);
   }, []);
 
   const backfillMissingImages = useCallback(
@@ -78,7 +79,7 @@ export default function HomePage() {
             return null;
           }
 
-          return updateCollection(item.id, { image: metadata.image });
+          return collectionService.update(item.id, { image: metadata.image });
         })
       );
 
@@ -115,9 +116,9 @@ export default function HomePage() {
         setTimeout(() => reject(new Error("加载超时")), 15000)
       );
       const data = (await Promise.race([
-        getUserCollections(user!.id),
+        collectionService.listUserCollections(user.id),
         timeoutPromise,
-      ])) as Awaited<ReturnType<typeof getUserCollections>>;
+      ])) as Awaited<ReturnType<typeof collectionService.listUserCollections>>;
       setItems(data.map(mapCollectionRecordToItemView));
       void backfillMissingImages(data);
     } catch (error) {
@@ -136,22 +137,10 @@ export default function HomePage() {
     if (!authLoading && user) {
       loadItems();
     }
-  }, [authLoading, user, loadItems]);
-
-  // 剪贴板检测
-  const checkClipboard = useCallback(async () => {
-    if (!clipboardSupported) return;
-
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text && (text.startsWith("http://") || text.startsWith("https://"))) {
-        setDetectedUrl(text);
-        setShowClipboardPrompt(true);
-      }
-    } catch {
-      // 忽略（iOS Safari 不允许无手势调用）
+    if (!authLoading && !user) {
+      setLoading(false);
     }
-  }, [clipboardSupported]);
+  }, [authLoading, user, loadItems]);
 
   // 手动粘贴按钮（兼容 iOS Safari）
   const pasteFromClipboard = async () => {
@@ -164,7 +153,7 @@ export default function HomePage() {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
-        setInput(text);
+        handleInputPaste(text);
       }
     } catch {
       alert("无法读取剪贴板，请手动粘贴");
@@ -181,17 +170,21 @@ export default function HomePage() {
 
     setClipboardSupported(supported);
 
+    if (!supported) {
+      return;
+    }
+
     const timer = setTimeout(checkClipboard, 500);
     return () => clearTimeout(timer);
-  }, [checkClipboard, clipboardSupported]);
+  }, [checkClipboard]);
 
-  const addItem = async (url?: string) => {
+  const addItem = async (overrideInput?: string) => {
     if (!user) return;
     if (submitting) return;
     setSubmitting(true);
-    const rawInput = (url || input).trim();
+    const rawInput = (overrideInput ?? input).trim();
     const extractedUrl = extractUrl(rawInput);
-    const targetUrl = url || extractedUrl || rawInput;
+    const targetUrl = extractedUrl || rawInput;
 
     if (!targetUrl) {
       setSubmitting(false);
@@ -207,7 +200,7 @@ export default function HomePage() {
 
     // 保存到 Supabase
     try {
-      const data = await addCollection({
+      const data = await collectionService.create({
         user_id: user.id,
         title,
         url: finalUrl,
@@ -222,10 +215,11 @@ export default function HomePage() {
 
       const newItem = mapCollectionRecordToItemView(data);
 
-      setItems([newItem, ...items]);
+      setItems((currentItems) => [newItem, ...currentItems]);
       setInput("");
       setShowClipboardPrompt(false);
       setDetectedUrl(null);
+      setDetectedRawInput(null);
 
       // 如果是纯链接，提示用户编辑
       if (needsEdit) {
@@ -246,8 +240,10 @@ export default function HomePage() {
 
   const deleteItem = async (id: string) => {
     try {
-      await deleteCollection(id);
-      setItems(items.filter((item) => item.id !== id));
+      await collectionService.remove(id);
+      setItems((currentItems) =>
+        currentItems.filter((item) => item.id !== id)
+      );
     } catch (error) {
       console.error("Failed to delete item:", error);
       alert("删除失败，请重试");
@@ -255,8 +251,8 @@ export default function HomePage() {
   };
 
   const startEdit = (id: string) => {
-    setItems(
-      items.map((item) =>
+    setItems((currentItems) =>
+      currentItems.map((item) =>
         item.id === id ? { ...item, isEditing: true } : item
       )
     );
@@ -264,9 +260,9 @@ export default function HomePage() {
 
   const saveEdit = async (id: string, newTitle: string) => {
     try {
-      await updateCollection(id, { title: newTitle, needs_edit: false });
-      setItems(
-        items.map((item) =>
+      await collectionService.update(id, { title: newTitle, needs_edit: false });
+      setItems((currentItems) =>
+        currentItems.map((item) =>
           item.id === id
             ? { ...item, title: newTitle, isEditing: false, needsEdit: false }
             : item
@@ -279,8 +275,8 @@ export default function HomePage() {
   };
 
   const cancelEdit = (id: string) => {
-    setItems(
-      items.map((item) =>
+    setItems((currentItems) =>
+      currentItems.map((item) =>
         item.id === id ? { ...item, isEditing: false } : item
       )
     );
@@ -321,8 +317,7 @@ export default function HomePage() {
         <h1 className="text-xl font-bold text-gray-900">Revive</h1>
         <button
           onClick={async () => {
-            const supabase = createClient();
-            await supabase.auth.signOut();
+            await authService.signOut();
             window.location.replace("/login");
           }}
           className="text-sm text-gray-500"
@@ -337,6 +332,7 @@ export default function HomePage() {
         clipboardSupported={clipboardSupported}
         inputRef={inputRef}
         onInputChange={setInput}
+        onInputPaste={handleInputPaste}
         onClear={() => setInput("")}
         onPaste={pasteFromClipboard}
         onSubmit={() => addItem()}
@@ -387,10 +383,11 @@ export default function HomePage() {
         <ClipboardPrompt
           url={detectedUrl}
           platform={detectPlatform(detectedUrl)}
-          onConfirm={() => addItem(detectedUrl)}
+          onConfirm={() => addItem(detectedRawInput ?? detectedUrl)}
           onCancel={() => {
             setShowClipboardPrompt(false);
             setDetectedUrl(null);
+            setDetectedRawInput(null);
           }}
         />
       )}

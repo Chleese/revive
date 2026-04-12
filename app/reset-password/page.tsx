@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/app/lib/supabase/client";
+import { authService } from "@/lib/services/auth";
 
 export default function ResetPasswordPage() {
-  const supabase = createClient();
-
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -16,8 +14,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      await authService.updatePassword(password);
       window.location.replace("/");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "重置失败");
