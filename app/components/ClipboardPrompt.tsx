@@ -1,4 +1,5 @@
 import { Platform, getPlatformName } from "../utils/platform";
+import { AppDialog } from "@/components/ui/AppDialog";
 
 interface ClipboardPromptProps {
   url: string;
@@ -17,27 +18,20 @@ export function ClipboardPrompt({
   onCancel,
 }: ClipboardPromptProps) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
-        <h3 className="text-lg font-bold mb-2">检测到链接</h3>
-        <p className="text-gray-600 mb-1">来源: {getPlatformName(platform)}</p>
-        <p className="text-xs text-gray-400 mb-4 truncate">{url}</p>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2 border border-gray-300 rounded-lg font-medium"
-          >
-            取消
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2 bg-black text-white rounded-lg font-medium"
-          >
-            添加收藏
-          </button>
-        </div>
+    <AppDialog
+      title="检测到剪贴板链接"
+      description="要把这条内容直接加入 Revive 吗？"
+      confirmText="添加收藏"
+      cancelText="稍后再说"
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    >
+      <div className="rounded-2xl bg-stone-50 px-4 py-3 text-left">
+        <p className="mb-1 text-xs uppercase tracking-[0.28em] text-stone-400">
+          {getPlatformName(platform)}
+        </p>
+        <p className="truncate text-sm text-stone-600">{url}</p>
       </div>
-    </div>
+    </AppDialog>
   );
 }

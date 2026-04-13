@@ -1,12 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PlatformIcon } from "@/app/components/PlatformIcon";
 import { getPlatformName } from "@/lib/platform";
 import type { CollectionItemView } from "@/lib/collections/types";
 
 type CollectionCardProps = {
   item: CollectionItemView;
+  onOpen: (id: string, url: string) => void;
+  onRequestReminder: (id: string) => void;
+  onEditCategory: (id: string) => void;
   onStartEdit: (id: string) => void;
   onSaveEdit: (id: string, newTitle: string) => void;
   onCancelEdit: (id: string) => void;
@@ -15,23 +18,59 @@ type CollectionCardProps = {
 
 export function CollectionCard({
   item,
+  onOpen,
+  onRequestReminder,
+  onEditCategory,
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
   onDelete,
 }: CollectionCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const categoryLabel = item.categoryName ?? "未分类";
   const imageSrc =
     item.image && /^https?:\/\//i.test(item.image)
       ? `/api/image?url=${encodeURIComponent(item.image)}`
       : item.image;
   const shouldShowImage = Boolean(imageSrc) && imageSrc !== failedImageSrc;
 
+  const handleOpen = () => {
+    if (item.isEditing) return;
+    onOpen(item.id, item.url);
+  };
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [menuOpen]);
+
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div
+      role={item.isEditing ? undefined : "link"}
+      tabIndex={item.isEditing ? -1 : 0}
+      onClick={handleOpen}
+      onKeyDown={(event) => {
+        if (item.isEditing) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          handleOpen();
+        }
+      }}
+      className="bg-white rounded-xl shadow-sm overflow-visible transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15 cursor-pointer"
+    >
       {shouldShowImage && imageSrc && (
-        <div className="relative aspect-video w-full bg-gray-100">
+        <div className="relative aspect-video w-full overflow-hidden rounded-t-xl bg-gray-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageSrc}
@@ -44,7 +83,7 @@ export function CollectionCard({
 
       <div className="p-3">
         {item.isEditing ? (
-          <div className="mb-2">
+          <div className="mb-2" onClick={(event) => event.stopPropagation()}>
             <input
               ref={inputRef}
               type="text"
@@ -77,34 +116,79 @@ export function CollectionCard({
               {getPlatformName(item.platform)}
               {item.needsEdit && (
                 <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-xs">
-                  待编辑
+                  标题待编辑
                 </span>
               )}
             </div>
 
             <div className="flex justify-between items-center">
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-900 text-sm"
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs ${
+                  item.categoryName
+                    ? "bg-gray-100 text-gray-700"
+                    : "bg-stone-100 text-stone-500"
+                }`}
               >
-                打开
-              </a>
+                {categoryLabel}
+              </span>
 
-              <div className="flex gap-2">
+              <div
+                ref={menuRef}
+                className="relative"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <button
-                  onClick={() => onStartEdit(item.id)}
-                  className="text-sm bg-gray-100 text-gray-900 px-2 py-1 rounded"
+                  type="button"
+                  onClick={() => setMenuOpen((current) => !current)}
+                  aria-label="更多操作"
+                  className="text-sm bg-gray-100 text-gray-900 px-3 py-1 rounded"
                 >
-                  编辑
+                  更多
                 </button>
-                <button
-                  onClick={() => onDelete(item.id)}
-                  className="text-sm bg-red-50 text-red-500 px-2 py-1 rounded"
-                >
-                  删除
-                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 top-10 z-10 min-w-36 rounded-xl border border-gray-100 bg-white p-1 shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onRequestReminder(item.id);
+                      }}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50"
+                    >
+                      设提醒
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onEditCategory(item.id);
+                      }}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50"
+                    >
+                      {item.categoryName ? "编辑分类" : "设置分类"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onStartEdit(item.id);
+                      }}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50"
+                    >
+                      编辑标题
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDelete(item.id);
+                      }}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm text-red-500 hover:bg-red-50"
+                    >
+                      删除
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </>

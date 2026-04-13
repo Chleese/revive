@@ -35,19 +35,29 @@ export type CollectionItemView = {
   url: string;
   platform: Platform;
   image?: string;
+  categoryId?: string;
+  categoryName?: string;
+  lastOpenedAt?: string;
   isEditing?: boolean;
   needsEdit?: boolean;
 };
 
 export function mapCollectionRecordToItemView(
-  item: CollectionRecord
+  item: CollectionRecord,
+  options?: { categoryNameById?: Record<string, string> }
 ): CollectionItemView {
+  const categoryNameById = options?.categoryNameById ?? {};
+  const categoryId = item.category_id ?? undefined;
+
   return {
     id: item.id ?? "",
     title: item.title,
     url: item.url,
     platform: item.platform,
     image: item.image ?? undefined,
+    categoryId,
+    categoryName: categoryId ? categoryNameById[categoryId] : undefined,
+    lastOpenedAt: item.last_opened_at ?? undefined,
     needsEdit: item.needs_edit ?? false,
   };
 }

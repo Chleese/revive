@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { detectPlatform } from "@/lib/platform";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CategoryOption, CategoryRecord } from "@/lib/categories/types";
+import { detectPlatform, getPlatformName } from "@/lib/platform";
+import type { Platform } from "@/lib/platform";
 import { extractUrl } from "@/lib/metadata/normalize";
 import type { MetadataResult } from "@/lib/metadata/types";
 import {
@@ -10,17 +12,36 @@ import {
   type CollectionItemView,
 } from "@/lib/collections/types";
 import { authService } from "@/lib/services/auth";
+import { categoryService } from "@/lib/services/categories";
 import { collectionService } from "@/lib/services/collections";
 import { metadataService } from "@/lib/services/metadata";
 import { AddCollectionForm } from "@/components/collection/AddCollectionForm";
+import { FloatingCounter } from "@/components/collection/FloatingCounter";
 import { CollectionList } from "@/components/collection/CollectionList";
+import { BottomNav } from "@/components/navigation/BottomNav";
+import { AppDialog } from "@/components/ui/AppDialog";
+import { AppToast } from "@/components/ui/AppToast";
+import { ReviveLoading } from "@/components/ui/ReviveLoading";
 import { ClipboardPrompt } from "./components/ClipboardPrompt";
 import { useAuth } from "./components/AuthProvider";
+
+type DialogState =
+  | { type: "needsEdit"; itemId: string }
+  | { type: "delete"; itemId: string }
+  | { type: "filters" }
+  | { type: "itemCategory"; itemId: string }
+  | null;
+
+type ToastState = { message: string; tone: "info" | "error" } | null;
 
 export default function HomePage() {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<CollectionItemView[]>([]);
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [input, setInput] = useState("");
+  const [selectedPlatformFilter, setSelectedPlatformFilter] =
+    useState<Platform | "all">("all");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
   const [detectedRawInput, setDetectedRawInput] = useState<string | null>(null);
   const [showClipboardPrompt, setShowClipboardPrompt] = useState(false);
@@ -29,8 +50,62 @@ export default function HomePage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [clipboardSupported, setClipboardSupported] = useState(true);
+  const [dialogState, setDialogState] = useState<DialogState>(null);
+  const [toastState, setToastState] = useState<ToastState>(null);
+  const [activeItemIndex, setActiveItemIndex] = useState(1);
   const attemptedImageBackfillIds = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const showToast = useCallback(
+    (message: string, tone: "info" | "error" = "info") => {
+      setToastState({ message, tone });
+    },
+    [],
+  );
+
+  const categoryOptions: CategoryOption[] = useMemo(
+    () =>
+      categories.map((category) => ({
+        id: category.id,
+        name: category.name,
+      })),
+    [categories],
+  );
+  const categoryNameById = useMemo(
+    () =>
+      categories.reduce<Record<string, string>>((accumulator, category) => {
+        accumulator[category.id] = category.name;
+        return accumulator;
+      }, {}),
+    [categories],
+  );
+  const filteredItems = useMemo(
+    () =>
+      items.filter((item) => {
+        const matchesPlatform =
+          selectedPlatformFilter === "all" ||
+          item.platform === selectedPlatformFilter;
+        const matchesCategory =
+          selectedCategoryFilter === "all" ||
+          item.categoryId === selectedCategoryFilter;
+
+        return matchesPlatform && matchesCategory;
+      }),
+    [items, selectedCategoryFilter, selectedPlatformFilter],
+  );
+  const hasActiveFilters =
+    selectedPlatformFilter !== "all" || selectedCategoryFilter !== "all";
+  const visibleCounter = filteredItems.length
+    ? Math.min(Math.max(activeItemIndex, 1), filteredItems.length)
+    : 0;
+  const categoryDialogItem =
+    dialogState?.type === "itemCategory"
+      ? items.find((item) => item.id === dialogState.itemId) ?? null
+      : null;
+
+  useEffect(() => {
+    setActiveItemIndex(filteredItems.length ? 1 : 0);
+  }, [filteredItems.length]);
 
   const handleInputPaste = useCallback((value: string) => {
     setInput(value);
@@ -41,7 +116,8 @@ export default function HomePage() {
       const text = await navigator.clipboard.readText();
       const extractedUrl = extractUrl(text.trim());
       const clipboardUrl =
-        extractedUrl ?? (text.trim().startsWith("http://") || text.trim().startsWith("https://")
+        extractedUrl ??
+        (text.trim().startsWith("http://") || text.trim().startsWith("https://")
           ? text.trim()
           : null);
 
@@ -55,14 +131,22 @@ export default function HomePage() {
     }
   }, []);
 
-  const resolveRemoteMetadata = useCallback(async (rawInput: string): Promise<MetadataResult | null> => {
-    return metadataService.resolve(rawInput);
-  }, []);
+  const resolveRemoteMetadata = useCallback(
+    async (rawInput: string): Promise<MetadataResult | null> => {
+      return metadataService.resolve(rawInput);
+    },
+    [],
+  );
 
   const backfillMissingImages = useCallback(
     async (records: CollectionRecord[]) => {
       const candidates = records
-        .filter((item) => item.id && !item.image && !attemptedImageBackfillIds.current.has(item.id))
+        .filter(
+          (item) =>
+            item.id &&
+            !item.image &&
+            !attemptedImageBackfillIds.current.has(item.id),
+        )
         .slice(0, 3);
 
       if (!candidates.length) return;
@@ -73,14 +157,16 @@ export default function HomePage() {
 
       const updates = await Promise.allSettled(
         candidates.map(async (item) => {
-          const metadata = await resolveRemoteMetadata(item.raw_input?.trim() || item.url);
+          const metadata = await resolveRemoteMetadata(
+            item.raw_input?.trim() || item.url,
+          );
 
           if (!metadata?.image || !item.id) {
             return null;
           }
 
           return collectionService.update(item.id, { image: metadata.image });
-        })
+        }),
       );
 
       updates.forEach((result) => {
@@ -89,21 +175,27 @@ export default function HomePage() {
         }
       });
 
-      const refreshedItems = updates
-        .flatMap((result) =>
-          result.status === "fulfilled" && result.value ? [result.value] : []
-        );
+      const refreshedItems = updates.flatMap((result) =>
+        result.status === "fulfilled" && result.value ? [result.value] : [],
+      );
 
       if (!refreshedItems.length) return;
 
       setItems((currentItems) =>
         currentItems.map((currentItem) => {
-          const refreshedItem = refreshedItems.find((item) => item.id === currentItem.id);
-          return refreshedItem ? mapCollectionRecordToItemView(refreshedItem) : currentItem;
-        })
+          const refreshedItem = refreshedItems.find(
+            (item) => item.id === currentItem.id,
+          );
+          return refreshedItem
+            ? {
+                ...currentItem,
+                image: refreshedItem.image ?? currentItem.image,
+              }
+            : currentItem;
+        }),
       );
     },
-    [resolveRemoteMetadata]
+    [resolveRemoteMetadata],
   );
 
   const loadItems = useCallback(async () => {
@@ -113,14 +205,26 @@ export default function HomePage() {
     setLoading(true);
     try {
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("加载超时")), 15000)
+        setTimeout(() => reject(new Error("加载超时")), 15000),
       );
-      const data = (await Promise.race([
+      const collectionsData = (await Promise.race([
         collectionService.listUserCollections(user.id),
         timeoutPromise,
       ])) as Awaited<ReturnType<typeof collectionService.listUserCollections>>;
-      setItems(data.map(mapCollectionRecordToItemView));
-      void backfillMissingImages(data);
+
+      setItems(collectionsData.map((item) => mapCollectionRecordToItemView(item)));
+      void backfillMissingImages(collectionsData);
+
+      void categoryService
+        .listUserCategories(user.id)
+        .then((categoriesData) => {
+          setCategories(categoriesData);
+        })
+        .catch((error) => {
+          console.error("Failed to load categories:", error);
+          showToast("分类暂时加载失败，不影响你先查看收藏。");
+          setCategories([]);
+        });
     } catch (error) {
       console.error("Failed to load items:", error);
       setLoadError(true);
@@ -130,7 +234,20 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [backfillMissingImages, user]);
+  }, [backfillMissingImages, showToast, user]);
+
+  useEffect(() => {
+    setItems((currentItems) =>
+      currentItems.map((item) =>
+        item.categoryId
+          ? {
+              ...item,
+              categoryName: categoryNameById[item.categoryId],
+            }
+          : { ...item, categoryName: undefined },
+      ),
+    );
+  }, [categories, categoryNameById]);
 
   // 从 Supabase 加载数据
   useEffect(() => {
@@ -156,7 +273,7 @@ export default function HomePage() {
         handleInputPaste(text);
       }
     } catch {
-      alert("无法读取剪贴板，请手动粘贴");
+      showToast("无法读取剪贴板，请手动粘贴", "error");
     }
   };
 
@@ -178,133 +295,196 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [checkClipboard]);
 
-  const addItem = async (overrideInput?: string) => {
-    if (!user) return;
-    if (submitting) return;
-    setSubmitting(true);
-    const rawInput = (overrideInput ?? input).trim();
-    const extractedUrl = extractUrl(rawInput);
-    const targetUrl = extractedUrl || rawInput;
+  const addItem = useCallback(
+    async (overrideInput?: string) => {
+      if (!user) return;
+      if (submitting) return;
+      setSubmitting(true);
+      const rawInput = (overrideInput ?? input).trim();
+      const extractedUrl = extractUrl(rawInput);
+      const targetUrl = extractedUrl || rawInput;
 
-    if (!targetUrl) {
-      setSubmitting(false);
-      return;
-    }
-
-    const resolvedMetadata = await resolveRemoteMetadata(rawInput);
-    const platform = resolvedMetadata?.platform ?? detectPlatform(targetUrl);
-    const title = resolvedMetadata?.title ?? targetUrl;
-    const image = resolvedMetadata?.image;
-    const needsEdit = resolvedMetadata?.needsEdit ?? false;
-    const finalUrl = resolvedMetadata?.resolvedUrl ?? resolvedMetadata?.url ?? targetUrl;
-
-    // 保存到 Supabase
-    try {
-      const data = await collectionService.create({
-        user_id: user.id,
-        title,
-        url: finalUrl,
-        resolved_url: resolvedMetadata?.resolvedUrl ?? finalUrl,
-        platform,
-        image,
-        raw_input: rawInput,
-        metadata_source: resolvedMetadata?.metadataSource,
-        metadata_confidence: resolvedMetadata?.metadataConfidence,
-        needs_edit: needsEdit,
-      });
-
-      const newItem = mapCollectionRecordToItemView(data);
-
-      setItems((currentItems) => [newItem, ...currentItems]);
-      setInput("");
-      setShowClipboardPrompt(false);
-      setDetectedUrl(null);
-      setDetectedRawInput(null);
-
-      // 如果是纯链接，提示用户编辑
-      if (needsEdit) {
-        setTimeout(() => {
-          const shouldEdit = confirm("未获取到视频标题，是否立即编辑备注？");
-          if (shouldEdit) {
-            startEdit(newItem.id);
-          }
-        }, 100);
+      if (!targetUrl) {
+        setSubmitting(false);
+        return;
       }
-    } catch (error) {
-      console.error("Failed to add item:", error);
-      alert("添加失败，请重试");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
-  const deleteItem = async (id: string) => {
-    try {
-      await collectionService.remove(id);
-      setItems((currentItems) =>
-        currentItems.filter((item) => item.id !== id)
-      );
-    } catch (error) {
-      console.error("Failed to delete item:", error);
-      alert("删除失败，请重试");
-    }
-  };
+      const resolvedMetadata = await resolveRemoteMetadata(rawInput);
+      const platform = resolvedMetadata?.platform ?? detectPlatform(targetUrl);
+      const title = resolvedMetadata?.title ?? targetUrl;
+      const image = resolvedMetadata?.image;
+      const needsEdit = resolvedMetadata?.needsEdit ?? false;
+      const finalUrl =
+        resolvedMetadata?.resolvedUrl ?? resolvedMetadata?.url ?? targetUrl;
+
+      try {
+        const data = await collectionService.create({
+          user_id: user.id,
+          title,
+          url: finalUrl,
+          resolved_url: resolvedMetadata?.resolvedUrl ?? finalUrl,
+          platform,
+          image,
+          raw_input: rawInput,
+          category_id: null,
+          metadata_source: resolvedMetadata?.metadataSource,
+          metadata_confidence: resolvedMetadata?.metadataConfidence,
+          needs_edit: needsEdit,
+        });
+
+        const newItem = mapCollectionRecordToItemView(data, {
+          categoryNameById,
+        });
+
+        setItems((currentItems) => [newItem, ...currentItems]);
+        setInput("");
+        setShowClipboardPrompt(false);
+        setDetectedUrl(null);
+        setDetectedRawInput(null);
+
+        if (needsEdit) {
+          setTimeout(() => {
+            setDialogState({ type: "needsEdit", itemId: newItem.id });
+          }, 100);
+        }
+      } catch (error) {
+        console.error("Failed to add item:", error);
+        showToast("添加失败，请重试", "error");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [
+      categoryNameById,
+      input,
+      resolveRemoteMetadata,
+      showToast,
+      submitting,
+      user,
+    ],
+  );
+
+  const deleteItem = useCallback(
+    async (id: string) => {
+      try {
+        await collectionService.remove(id);
+        setItems((currentItems) =>
+          currentItems.filter((item) => item.id !== id),
+        );
+      } catch (error) {
+        console.error("Failed to delete item:", error);
+        showToast("删除失败，请重试", "error");
+      }
+    },
+    [showToast],
+  );
 
   const startEdit = (id: string) => {
     setItems((currentItems) =>
       currentItems.map((item) =>
-        item.id === id ? { ...item, isEditing: true } : item
-      )
+        item.id === id ? { ...item, isEditing: true } : item,
+      ),
     );
   };
 
-  const saveEdit = async (id: string, newTitle: string) => {
-    try {
-      await collectionService.update(id, { title: newTitle, needs_edit: false });
-      setItems((currentItems) =>
-        currentItems.map((item) =>
-          item.id === id
-            ? { ...item, title: newTitle, isEditing: false, needsEdit: false }
-            : item
-        )
-      );
-    } catch (error) {
-      console.error("Failed to update item:", error);
-      alert("保存失败，请重试");
-    }
-  };
+  const saveEdit = useCallback(
+    async (id: string, newTitle: string) => {
+      try {
+        await collectionService.update(id, {
+          title: newTitle,
+          needs_edit: false,
+          metadata_source: "manual",
+          metadata_confidence: 1,
+        });
+        setItems((currentItems) =>
+          currentItems.map((item) =>
+            item.id === id
+              ? { ...item, title: newTitle, isEditing: false, needsEdit: false }
+              : item,
+          ),
+        );
+      } catch (error) {
+        console.error("Failed to update item:", error);
+        showToast("保存失败，请重试", "error");
+      }
+    },
+    [showToast],
+  );
 
   const cancelEdit = (id: string) => {
     setItems((currentItems) =>
       currentItems.map((item) =>
-        item.id === id ? { ...item, isEditing: false } : item
-      )
+        item.id === id ? { ...item, isEditing: false } : item,
+      ),
     );
   };
+
+  const handleOpen = useCallback((id: string, url: string) => {
+    const openedAt = new Date().toISOString();
+
+    const popup = window.open(url, "_blank", "noopener,noreferrer");
+    if (!popup) {
+      window.location.href = url;
+    }
+
+    setItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === id ? { ...item, lastOpenedAt: openedAt } : item,
+      ),
+    );
+
+    void collectionService
+      .update(id, {
+        last_opened_at: openedAt,
+      })
+      .catch((error) => {
+        console.error("Failed to update open timestamp:", error);
+      });
+  }, []);
+
+  const handleRequestReminder = useCallback(() => {
+    showToast("设提醒会在下一阶段接入，入口已经给你留好了。");
+  }, [showToast]);
+
+  const handleCategoryUpdate = useCallback(
+    async (itemId: string, categoryId: string | null) => {
+      try {
+        await collectionService.update(itemId, {
+          category_id: categoryId,
+        });
+
+        setItems((currentItems) =>
+          currentItems.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  categoryId: categoryId ?? undefined,
+                  categoryName: categoryId
+                    ? categoryNameById[categoryId]
+                    : undefined,
+                }
+              : item,
+          ),
+        );
+
+        setDialogState(null);
+        showToast(categoryId ? "分类已更新。" : "已取消分类。");
+      } catch (error) {
+        console.error("Failed to update item category:", error);
+        showToast("更新分类失败，请重试", "error");
+      }
+    },
+    [categoryNameById, showToast],
+  );
 
   if (!user) {
     if (authLoading) {
       return (
-        <div className="min-h-screen bg-gray-50 p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-gray-900">Revive</h1>
-          </div>
-          <div className="mb-4">
-            <div className="h-10 w-full rounded-lg bg-white animate-pulse" />
-          </div>
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div
-                key={index}
-                className="rounded-xl bg-white p-4 shadow-sm animate-pulse"
-              >
-                <div className="h-4 w-2/3 rounded bg-gray-200 mb-3" />
-                <div className="h-3 w-24 rounded bg-gray-100 mb-4" />
-                <div className="h-3 w-16 rounded bg-gray-100" />
-              </div>
-            ))}
-          </div>
-        </div>
+        <ReviveLoading
+          fullscreen
+          label='Revive 正在确认你的身份'
+          detail='收藏列表马上就到。'
+        />
       );
     }
 
@@ -312,16 +492,15 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold text-gray-900">Revive</h1>
+    <div className='min-h-screen bg-gray-50 p-4 pb-20'>
+      <div className='flex justify-between items-center mb-4'>
+        <h1 className='text-xl font-bold text-gray-900'>Revive</h1>
         <button
           onClick={async () => {
             await authService.signOut();
             window.location.replace("/login");
           }}
-          className="text-sm text-gray-500"
-        >
+          className='text-sm text-gray-500'>
           登出
         </button>
       </div>
@@ -337,45 +516,102 @@ export default function HomePage() {
         onPaste={pasteFromClipboard}
         onSubmit={() => addItem()}
       />
+      {hasActiveFilters && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {selectedPlatformFilter !== "all" && (
+            <button
+              type="button"
+              onClick={() => setSelectedPlatformFilter("all")}
+              className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-700 hover:bg-stone-200"
+            >
+              {getPlatformName(selectedPlatformFilter)}
+              <span className="text-stone-400">&times;</span>
+            </button>
+          )}
+          {selectedCategoryFilter !== "all" && categoryNameById[selectedCategoryFilter] && (
+            <button
+              type="button"
+              onClick={() => setSelectedCategoryFilter("all")}
+              className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-700 hover:bg-stone-200"
+            >
+              {categoryNameById[selectedCategoryFilter]}
+              <span className="text-stone-400">&times;</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedPlatformFilter("all");
+              setSelectedCategoryFilter("all");
+            }}
+            className="text-xs text-stone-400 hover:text-stone-600"
+          >
+            清除全部
+          </button>
+        </div>
+      )}
+
+      {/* 浮动筛选按钮 */}
+      <button
+        type="button"
+        onClick={() => setDialogState({ type: "filters" })}
+        className="fixed bottom-34 right-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/45 bg-white/42 text-stone-900 shadow-[0_10px_28px_rgba(15,23,42,0.08)] ring-1 ring-stone-200/25 backdrop-blur-xl hover:bg-white/60"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="3" y1="5" x2="21" y2="5" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="19" x2="21" y2="19" />
+          <circle cx="8" cy="5" r="2" fill="white" />
+          <circle cx="16" cy="12" r="2" fill="white" />
+          <circle cx="11" cy="19" r="2" fill="white" />
+        </svg>
+        {hasActiveFilters && (
+          <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500" />
+        )}
+      </button>
 
       {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div
-              key={index}
-              className="rounded-xl bg-white p-4 shadow-sm animate-pulse"
-            >
-              <div className="h-4 w-2/3 rounded bg-gray-200 mb-3" />
-              <div className="h-3 w-24 rounded bg-gray-100 mb-4" />
-              <div className="h-3 w-16 rounded bg-gray-100" />
-            </div>
-          ))}
-        </div>
+        <ReviveLoading
+          compact
+          label='Revive 正在展开你的列表'
+          detail='标题、封面和状态正在同步。'
+        />
       ) : loadError ? (
-        <div className="rounded-xl bg-white p-4 shadow-sm text-center">
-          <div className="text-gray-900 mb-3">列表加载失败，请重试</div>
-          {errorMsg && <div className="text-xs text-gray-400 mb-3">{errorMsg}</div>}
+        <div className='rounded-xl bg-white p-4 shadow-sm text-center'>
+          <div className='text-gray-900 mb-3'>列表加载失败，请重试</div>
+          {errorMsg && (
+            <div className='text-xs text-gray-400 mb-3'>{errorMsg}</div>
+          )}
           <button
             onClick={loadItems}
-            className="bg-black text-white px-4 py-2 rounded-lg"
-          >
+            className='bg-black text-white px-4 py-2 rounded-lg'>
             重试
           </button>
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-xl bg-white p-5 shadow-sm text-sm text-gray-500">
+        <div className='rounded-xl bg-white p-5 shadow-sm text-sm text-gray-500'>
           还没有收藏，先粘贴一个链接试试。
+        </div>
+      ) : filteredItems.length === 0 ? (
+        <div className='rounded-xl bg-white p-5 shadow-sm text-sm text-gray-500'>
+          当前筛选条件下还没有匹配内容，换个分类或平台试试。
         </div>
       ) : (
         <CollectionList
-          items={items}
+          items={filteredItems}
+          onOpen={handleOpen}
+          onRequestReminder={handleRequestReminder}
+          onEditCategory={(id) => setDialogState({ type: "itemCategory", itemId: id })}
           onStartEdit={startEdit}
           onSaveEdit={saveEdit}
           onCancelEdit={cancelEdit}
-          onDelete={(id) => {
-            if (confirm("确定删除吗？")) deleteItem(id);
-          }}
+          onDelete={(id) => setDialogState({ type: "delete", itemId: id })}
+          onActiveIndexChange={setActiveItemIndex}
         />
+      )}
+
+      {!loading && !loadError && filteredItems.length > 0 && (
+        <FloatingCounter current={visibleCounter} total={filteredItems.length} />
       )}
 
       {/* 剪贴板检测提示 */}
@@ -391,6 +627,165 @@ export default function HomePage() {
           }}
         />
       )}
+
+      {dialogState?.type === "needsEdit" && (
+        <AppDialog
+          title='还没有拿到合适标题'
+          description='这条内容已经保存成功，要不要现在顺手补一个更清晰的备注？'
+          confirmText='立即编辑'
+          cancelText='稍后处理'
+          onConfirm={() => {
+            startEdit(dialogState.itemId);
+            setDialogState(null);
+          }}
+          onCancel={() => setDialogState(null)}
+        />
+      )}
+
+      {dialogState?.type === "delete" && (
+        <AppDialog
+          title='确认删除这条收藏？'
+          description='这条记录会直接从列表中移除。'
+          confirmText='删除'
+          cancelText='保留'
+          tone='danger'
+          cornerStyle='tight'
+          onConfirm={() => {
+            const { itemId } = dialogState;
+            setDialogState(null);
+            void deleteItem(itemId);
+          }}
+          onCancel={() => setDialogState(null)}
+        />
+      )}
+
+      {dialogState?.type === "filters" && (
+        <AppDialog
+          title="筛选收藏"
+          description="先用轻量筛选来整理列表，搜索和标签我们下一阶段再接。"
+          confirmText="完成"
+          cancelText="关闭"
+          onConfirm={() => setDialogState(null)}
+          onCancel={() => setDialogState(null)}
+        >
+          <div className="space-y-4">
+            <label className="block text-sm text-stone-700">
+              <div className="mb-1 text-xs text-stone-500">平台</div>
+              <select
+                value={selectedPlatformFilter}
+                onChange={(event) =>
+                  setSelectedPlatformFilter(event.target.value as Platform | "all")
+                }
+                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900"
+              >
+                <option value="all">全部平台</option>
+                <option value="douyin">抖音</option>
+                <option value="xiaohongshu">小红书</option>
+                <option value="bilibili">B 站</option>
+                <option value="youtube">YouTube</option>
+                <option value="weibo">微博</option>
+                <option value="wechat">公众号</option>
+                <option value="other">其他</option>
+              </select>
+            </label>
+
+            <label className="block text-sm text-stone-700">
+              <div className="mb-1 text-xs text-stone-500">分类</div>
+              <select
+                value={selectedCategoryFilter}
+                onChange={(event) => setSelectedCategoryFilter(event.target.value)}
+                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900"
+              >
+                <option value="all">全部分类</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </AppDialog>
+      )}
+
+      {dialogState?.type === "itemCategory" && categoryDialogItem && (
+        <AppDialog
+          title="编辑分类"
+          description="这里先只处理这条内容的分类。分类的新建和删除统一放到“我的”页面。"
+          confirmText="关闭"
+          cancelText="关闭"
+          onConfirm={() => setDialogState(null)}
+          onCancel={() => setDialogState(null)}
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-stone-50 px-3 py-3 text-sm text-stone-700">
+              当前内容：
+              <div className="mt-1 line-clamp-2 font-medium text-stone-900">
+                {categoryDialogItem.title}
+              </div>
+            </div>
+
+            {categoryOptions.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-stone-200 px-3 py-4 text-sm text-stone-500">
+                你还没有创建分类，先去“我的”里添加一个吧。
+              </div>
+            ) : (
+              <div>
+                <div className="mb-2 text-xs text-stone-500">选择分类</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleCategoryUpdate(categoryDialogItem.id, null)
+                    }
+                    className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
+                      !categoryDialogItem.categoryId
+                        ? "bg-stone-900 text-white"
+                        : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                    }`}
+                  >
+                    暂不分类
+                  </button>
+                  {categoryOptions.map((category) => {
+                    const isSelected =
+                      category.id === categoryDialogItem.categoryId;
+
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() =>
+                          void handleCategoryUpdate(
+                            categoryDialogItem.id,
+                            category.id,
+                          )
+                        }
+                        className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
+                          isSelected
+                            ? "bg-stone-900 text-white"
+                            : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                        }`}
+                      >
+                        {category.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </AppDialog>
+      )}
+
+      {toastState && (
+        <AppToast
+          message={toastState.message}
+          tone={toastState.tone}
+          onDismiss={() => setToastState(null)}
+        />
+      )}
+
+      <BottomNav />
     </div>
   );
 }
