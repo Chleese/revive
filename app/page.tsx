@@ -21,6 +21,7 @@ import { CollectionList } from "@/components/collection/CollectionList";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { AppDialog } from "@/components/ui/AppDialog";
 import { AppToast } from "@/components/ui/AppToast";
+import { ContentPreview } from "@/components/ui/ContentPreview";
 import { ReviveLoading } from "@/components/ui/ReviveLoading";
 import { ClipboardPrompt } from "./components/ClipboardPrompt";
 import { useAuth } from "./components/AuthProvider";
@@ -53,6 +54,7 @@ export default function HomePage() {
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [toastState, setToastState] = useState<ToastState>(null);
   const [activeItemIndex, setActiveItemIndex] = useState(1);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const attemptedImageBackfillIds = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -419,13 +421,8 @@ export default function HomePage() {
     );
   };
 
-  const handleOpen = useCallback((id: string, url: string) => {
+  const handleOpen = useCallback(async (id: string, url: string) => {
     const openedAt = new Date().toISOString();
-
-    const popup = window.open(url, "_blank", "noopener,noreferrer");
-    if (!popup) {
-      window.location.href = url;
-    }
 
     setItems((currentItems) =>
       currentItems.map((item) =>
@@ -440,6 +437,21 @@ export default function HomePage() {
       .catch((error) => {
         console.error("Failed to update open timestamp:", error);
       });
+
+    try {
+      const response = await fetch(
+        `/api/embed-check?url=${encodeURIComponent(url)}`,
+      );
+      const data = await response.json();
+
+      if (data.embeddable) {
+        setPreviewUrl(url);
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
   }, []);
 
   const handleRequestReminder = useCallback(() => {
@@ -786,6 +798,13 @@ export default function HomePage() {
       )}
 
       <BottomNav />
+
+      {previewUrl && (
+        <ContentPreview
+          url={previewUrl}
+          onClose={() => setPreviewUrl(null)}
+        />
+      )}
     </div>
   );
 }
