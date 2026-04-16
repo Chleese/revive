@@ -55,6 +55,9 @@ export default function HomePage() {
   const [toastState, setToastState] = useState<ToastState>(null);
   const [activeItemIndex, setActiveItemIndex] = useState(1);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [pendingCategoryId, setPendingCategoryId] = useState<
+    string | null | undefined
+  >(undefined);
   const attemptedImageBackfillIds = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -438,19 +441,21 @@ export default function HomePage() {
         console.error("Failed to update open timestamp:", error);
       });
 
+    // Open synchronously to preserve user gesture on mobile browsers
+    const popup = window.open(url, "_blank", "noopener,noreferrer");
+
     try {
       const response = await fetch(
         `/api/embed-check?url=${encodeURIComponent(url)}`,
       );
       const data = await response.json();
 
-      if (data.embeddable) {
+      if (data.embeddable && popup) {
+        popup.close();
         setPreviewUrl(url);
-      } else {
-        window.open(url, "_blank", "noopener,noreferrer");
       }
     } catch {
-      window.open(url, "_blank", "noopener,noreferrer");
+      // Already opened in new tab, nothing to do
     }
   }, []);
 
@@ -723,11 +728,20 @@ export default function HomePage() {
       {dialogState?.type === "itemCategory" && categoryDialogItem && (
         <AppDialog
           title="编辑分类"
-          description="这里先只处理这条内容的分类。分类的新建和删除统一放到“我的”页面。"
-          confirmText="关闭"
-          cancelText="关闭"
-          onConfirm={() => setDialogState(null)}
-          onCancel={() => setDialogState(null)}
+          description='这里先只处理这条内容的分类。分类的新建和删除统一放到"我的"页面。'
+          confirmText="确定"
+          cancelText="取消"
+          onConfirm={() => {
+            const targetId =
+              pendingCategoryId !== undefined
+                ? pendingCategoryId
+                : categoryDialogItem.categoryId ?? null;
+            void handleCategoryUpdate(categoryDialogItem.id, targetId);
+          }}
+          onCancel={() => {
+            setPendingCategoryId(undefined);
+            setDialogState(null);
+          }}
         >
           <div className="space-y-4">
             <div className="rounded-2xl bg-stone-50 px-3 py-3 text-sm text-stone-700">
@@ -739,7 +753,7 @@ export default function HomePage() {
 
             {categoryOptions.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-stone-200 px-3 py-4 text-sm text-stone-500">
-                你还没有创建分类，先去“我的”里添加一个吧。
+                你还没有创建分类，先去「我的」里添加一个吧。
               </div>
             ) : (
               <div>
@@ -747,11 +761,11 @@ export default function HomePage() {
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() =>
-                      void handleCategoryUpdate(categoryDialogItem.id, null)
-                    }
+                    onClick={() => setPendingCategoryId(null)}
                     className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-                      !categoryDialogItem.categoryId
+                      (pendingCategoryId !== undefined
+                        ? pendingCategoryId === null
+                        : !categoryDialogItem.categoryId)
                         ? "bg-stone-900 text-white"
                         : "bg-stone-100 text-stone-700 hover:bg-stone-200"
                     }`}
@@ -760,18 +774,15 @@ export default function HomePage() {
                   </button>
                   {categoryOptions.map((category) => {
                     const isSelected =
-                      category.id === categoryDialogItem.categoryId;
+                      pendingCategoryId !== undefined
+                        ? category.id === pendingCategoryId
+                        : category.id === categoryDialogItem.categoryId;
 
                     return (
                       <button
                         key={category.id}
                         type="button"
-                        onClick={() =>
-                          void handleCategoryUpdate(
-                            categoryDialogItem.id,
-                            category.id,
-                          )
-                        }
+                        onClick={() => setPendingCategoryId(category.id)}
                         className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
                           isSelected
                             ? "bg-stone-900 text-white"

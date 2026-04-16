@@ -242,7 +242,7 @@ export async function fetchGenericWebMetadata(url: string): Promise<GenericWebMe
         title: titleTag,
         image: bestImage,
         metadataSource: "title_tag",
-        metadataConfidence: 0.62,
+        metadataConfidence: 0.72,
       };
     }
 
