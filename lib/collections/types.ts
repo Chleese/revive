@@ -1,5 +1,6 @@
 import type { Platform } from "@/lib/platform";
 import type { MetadataSource } from "@/lib/metadata/types";
+import type { ActiveReminderView } from "@/lib/reminders/types";
 
 export type CollectionStatus = "unread" | "viewed" | "archived";
 
@@ -38,6 +39,7 @@ export type CollectionItemView = {
   categoryId?: string;
   categoryName?: string;
   lastOpenedAt?: string;
+  reminder?: ActiveReminderView;
   isEditing?: boolean;
   needsEdit?: boolean;
 };

@@ -7,8 +7,30 @@ const IMAGE_REQUEST_HEADERS = {
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
   Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
   "Accept-Language": "zh-CN,zh;q=0.9",
-  Referer: "https://www.google.com/",
 };
+
+function resolveImageReferer(imageUrl: string, sourceUrl: string | null): string {
+  if (!sourceUrl || !isUrlSafe(sourceUrl)) {
+    return "https://www.google.com/";
+  }
+
+  try {
+    const imageHost = new URL(imageUrl).hostname.toLowerCase();
+    const sourceHost = new URL(sourceUrl).hostname.toLowerCase();
+
+    const isWechatArticle = sourceHost === "mp.weixin.qq.com";
+    const isWechatImageHost =
+      imageHost.endsWith("qpic.cn") || imageHost.endsWith("weixin.qq.com");
+
+    if (isWechatArticle && isWechatImageHost) {
+      return sourceUrl;
+    }
+  } catch {
+    return "https://www.google.com/";
+  }
+
+  return "https://www.google.com/";
+}
 
 export const runtime = "nodejs";
 
@@ -20,6 +42,7 @@ export async function GET(request: NextRequest) {
   }
 
   const url = request.nextUrl.searchParams.get("url");
+  const source = request.nextUrl.searchParams.get("source");
 
   if (!url) {
     return NextResponse.json({ error: "url is required" }, { status: 400 });
@@ -32,9 +55,13 @@ export async function GET(request: NextRequest) {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const referer = resolveImageReferer(url, source);
 
     const response = await fetch(url, {
-      headers: IMAGE_REQUEST_HEADERS,
+      headers: {
+        ...IMAGE_REQUEST_HEADERS,
+        Referer: referer,
+      },
       redirect: "follow",
       signal: controller.signal,
     });

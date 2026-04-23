@@ -35,18 +35,40 @@ create table if not exists public.user_telegram_connections (
   unique (user_id)
 );
 
+create table if not exists public.user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  plan text not null default 'free',
+  reminder_beta_enabled boolean not null default false,
+  reminder_access_expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint user_profiles_plan_check check (plan in ('free', 'pro'))
+);
+
 create table if not exists public.item_reminders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   collection_id uuid not null references public.collections(id) on delete cascade,
   remind_at timestamptz not null,
   timezone text not null default 'Asia/Shanghai',
+  reminder_type text not null default 'once'
+    check (reminder_type in ('once', 'daily_20')),
   status text not null default 'pending'
     check (status in ('pending', 'sent', 'cancelled', 'failed')),
   sent_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.item_reminders
+  add column if not exists reminder_type text not null default 'once';
+
+alter table public.item_reminders
+  drop constraint if exists item_reminders_reminder_type_check;
+
+alter table public.item_reminders
+  add constraint item_reminders_reminder_type_check
+  check (reminder_type in ('once', 'daily_20'));
 
 alter table public.collections
   add column if not exists resolved_url text,
@@ -124,6 +146,12 @@ create unique index if not exists idx_item_reminders_one_pending_per_collection
   on public.item_reminders(collection_id)
   where status = 'pending';
 
+create index if not exists idx_user_profiles_plan
+  on public.user_profiles(plan);
+
+create index if not exists idx_user_profiles_reminder_access
+  on public.user_profiles(reminder_beta_enabled, reminder_access_expires_at);
+
 drop trigger if exists set_updated_at_categories on public.categories;
 create trigger set_updated_at_categories
 before update on public.categories
@@ -133,6 +161,12 @@ execute function public.set_updated_at();
 drop trigger if exists set_updated_at_user_telegram_connections on public.user_telegram_connections;
 create trigger set_updated_at_user_telegram_connections
 before update on public.user_telegram_connections
+for each row
+execute function public.set_updated_at();
+
+drop trigger if exists set_updated_at_user_profiles on public.user_profiles;
+create trigger set_updated_at_user_profiles
+before update on public.user_profiles
 for each row
 execute function public.set_updated_at();
 
@@ -154,6 +188,7 @@ execute function public.set_updated_at();
 
 alter table public.collections enable row level security;
 alter table public.categories enable row level security;
+alter table public.user_profiles enable row level security;
 alter table public.item_reminders enable row level security;
 alter table public.user_telegram_connections enable row level security;
 
@@ -193,38 +228,28 @@ create policy "categories: user can delete own"
   on public.categories for delete
   using (auth.uid() = user_id);
 
--- item_reminders: 用户只能读写自己的数据
+-- user_profiles: 用户只能读自己的配置；写入由服务端或管理员处理
+drop policy if exists "user_profiles: user can read own" on public.user_profiles;
+create policy "user_profiles: user can read own"
+  on public.user_profiles for select
+  using (auth.uid() = user_id);
+
+-- item_reminders: 用户只能读自己的提醒；写入由服务端统一校验权限和额度
+drop policy if exists "item_reminders: user can read own" on public.item_reminders;
 create policy "item_reminders: user can read own"
   on public.item_reminders for select
   using (auth.uid() = user_id);
 
-create policy "item_reminders: user can insert own"
-  on public.item_reminders for insert
-  with check (auth.uid() = user_id);
+drop policy if exists "item_reminders: user can insert own" on public.item_reminders;
+drop policy if exists "item_reminders: user can update own" on public.item_reminders;
+drop policy if exists "item_reminders: user can delete own" on public.item_reminders;
 
-create policy "item_reminders: user can update own"
-  on public.item_reminders for update
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
-
-create policy "item_reminders: user can delete own"
-  on public.item_reminders for delete
-  using (auth.uid() = user_id);
-
--- user_telegram_connections: 用户只能读写自己的数据
+-- user_telegram_connections: 用户只能读自己的绑定；写入由服务端统一校验权限
+drop policy if exists "user_telegram_connections: user can read own" on public.user_telegram_connections;
 create policy "user_telegram_connections: user can read own"
   on public.user_telegram_connections for select
   using (auth.uid() = user_id);
 
-create policy "user_telegram_connections: user can insert own"
-  on public.user_telegram_connections for insert
-  with check (auth.uid() = user_id);
-
-create policy "user_telegram_connections: user can update own"
-  on public.user_telegram_connections for update
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
-
-create policy "user_telegram_connections: user can delete own"
-  on public.user_telegram_connections for delete
-  using (auth.uid() = user_id);
+drop policy if exists "user_telegram_connections: user can insert own" on public.user_telegram_connections;
+drop policy if exists "user_telegram_connections: user can update own" on public.user_telegram_connections;
+drop policy if exists "user_telegram_connections: user can delete own" on public.user_telegram_connections;

@@ -11,10 +11,29 @@ import {
   mapCollectionRecordToItemView,
   type CollectionItemView,
 } from "@/lib/collections/types";
+import {
+  formatDateTimeLocalValue,
+  getDefaultReminderDateTimeValue,
+  getNextDailyReminderAt,
+  parseDateTimeLocalValue,
+} from "@/lib/reminders/time";
+import {
+  mapReminderRecordToView,
+  type ItemReminderRecord,
+  type ReminderType,
+} from "@/lib/reminders/types";
 import { authService } from "@/lib/services/auth";
 import { categoryService } from "@/lib/services/categories";
 import { collectionService } from "@/lib/services/collections";
 import { metadataService } from "@/lib/services/metadata";
+import { profileService } from "@/lib/services/profile";
+import { reminderService } from "@/lib/services/reminders";
+import { telegramService } from "@/lib/services/telegram";
+import {
+  canUseReminders,
+} from "@/lib/profiles/access";
+import type { UserProfileRecord } from "@/lib/profiles/types";
+import type { UserTelegramConnectionRecord } from "@/lib/telegram/types";
 import { AddCollectionForm } from "@/components/collection/AddCollectionForm";
 import { FloatingCounter } from "@/components/collection/FloatingCounter";
 import { CollectionList } from "@/components/collection/CollectionList";
@@ -23,6 +42,7 @@ import { AppDialog } from "@/components/ui/AppDialog";
 import { AppToast } from "@/components/ui/AppToast";
 import { ContentPreview } from "@/components/ui/ContentPreview";
 import { ReviveLoading } from "@/components/ui/ReviveLoading";
+import { useReminderDispatchHeartbeat } from "@/app/hooks/useReminderDispatchHeartbeat";
 import { ClipboardPrompt } from "./components/ClipboardPrompt";
 import { useAuth } from "./components/AuthProvider";
 
@@ -31,6 +51,7 @@ type DialogState =
   | { type: "delete"; itemId: string }
   | { type: "filters" }
   | { type: "itemCategory"; itemId: string }
+  | { type: "reminder"; itemId: string }
   | null;
 
 type ToastState = { message: string; tone: "info" | "error" } | null;
@@ -58,8 +79,20 @@ export default function HomePage() {
   const [pendingCategoryId, setPendingCategoryId] = useState<
     string | null | undefined
   >(undefined);
+  const [telegramConnection, setTelegramConnection] =
+    useState<UserTelegramConnectionRecord | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfileRecord | null>(null);
+  const [reminderDraftType, setReminderDraftType] =
+    useState<ReminderType>("once");
+  const [reminderDraftAt, setReminderDraftAt] = useState(() =>
+    getDefaultReminderDateTimeValue(),
+  );
+  const [savingReminder, setSavingReminder] = useState(false);
   const attemptedImageBackfillIds = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasReminderAccess = canUseReminders(userProfile);
+
+  useReminderDispatchHeartbeat(Boolean(user && hasReminderAccess));
 
   const showToast = useCallback(
     (message: string, tone: "info" | "error" = "info") => {
@@ -107,6 +140,27 @@ export default function HomePage() {
     dialogState?.type === "itemCategory"
       ? items.find((item) => item.id === dialogState.itemId) ?? null
       : null;
+  const reminderDialogItem =
+    dialogState?.type === "reminder"
+      ? items.find((item) => item.id === dialogState.itemId) ?? null
+      : null;
+
+  const applyRemindersToItems = useCallback(
+    (sourceItems: CollectionItemView[], reminders: ItemReminderRecord[]) => {
+      const reminderMap = new Map(
+        reminders.map((reminder) => [
+          reminder.collection_id,
+          mapReminderRecordToView(reminder),
+        ]),
+      );
+
+      return sourceItems.map((item) => ({
+        ...item,
+        reminder: reminderMap.get(item.id),
+      }));
+    },
+    [],
+  );
 
   useEffect(() => {
     setActiveItemIndex(filteredItems.length ? 1 : 0);
@@ -212,12 +266,58 @@ export default function HomePage() {
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("加载超时")), 15000),
       );
-      const collectionsData = (await Promise.race([
-        collectionService.listUserCollections(user.id),
-        timeoutPromise,
-      ])) as Awaited<ReturnType<typeof collectionService.listUserCollections>>;
+      const [collectionsResult, remindersResult, connectionResult, profileResult] =
+        await Promise.allSettled([
+          Promise.race([
+            collectionService.listUserCollections(user.id),
+            timeoutPromise,
+          ]),
+          reminderService.listUserActiveReminders(user.id),
+          telegramService.getUserConnection(user.id),
+          profileService.getUserProfile(user.id),
+        ]);
 
-      setItems(collectionsData.map((item) => mapCollectionRecordToItemView(item)));
+      if (collectionsResult.status === "rejected") {
+        throw collectionsResult.reason;
+      }
+
+      const collectionsData =
+        collectionsResult.value as Awaited<
+          ReturnType<typeof collectionService.listUserCollections>
+        >;
+      const activeReminders =
+        remindersResult.status === "fulfilled" ? remindersResult.value : [];
+
+      setItems(
+        applyRemindersToItems(
+          collectionsData.map((item) => mapCollectionRecordToItemView(item)),
+          activeReminders,
+        ),
+      );
+
+      if (remindersResult.status === "rejected") {
+        console.error("Failed to load reminders:", remindersResult.reason);
+      }
+
+      if (connectionResult.status === "fulfilled") {
+        setTelegramConnection(
+          connectionResult.value?.is_active ? connectionResult.value : null,
+        );
+      } else {
+        console.error(
+          "Failed to load Telegram connection:",
+          connectionResult.reason,
+        );
+        setTelegramConnection(null);
+      }
+
+      if (profileResult.status === "fulfilled") {
+        setUserProfile(profileResult.value);
+      } else {
+        console.warn("Failed to load user profile:", profileResult.reason);
+        setUserProfile(null);
+      }
+
       void backfillMissingImages(collectionsData);
 
       void categoryService
@@ -239,7 +339,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, [backfillMissingImages, showToast, user]);
+  }, [applyRemindersToItems, backfillMissingImages, showToast, user]);
 
   useEffect(() => {
     setItems((currentItems) =>
@@ -257,10 +357,12 @@ export default function HomePage() {
   // 从 Supabase 加载数据
   useEffect(() => {
     if (!authLoading && user) {
-      loadItems();
+      void loadItems();
     }
     if (!authLoading && !user) {
       setLoading(false);
+      setTelegramConnection(null);
+      setUserProfile(null);
     }
   }, [authLoading, user, loadItems]);
 
@@ -459,9 +561,26 @@ export default function HomePage() {
     }
   }, []);
 
-  const handleRequestReminder = useCallback(() => {
-    showToast("设提醒会在下一阶段接入，入口已经给你留好了。");
-  }, [showToast]);
+  const handleRequestReminder = useCallback(
+    (id: string) => {
+      const item = items.find((currentItem) => currentItem.id === id);
+      if (!item) return;
+
+      if (!hasReminderAccess) {
+        setDialogState({ type: "reminder", itemId: id });
+        return;
+      }
+
+      setReminderDraftType(item.reminder?.type ?? "once");
+      setReminderDraftAt(
+        item.reminder?.type === "once"
+          ? formatDateTimeLocalValue(new Date(item.reminder.remindAt))
+          : getDefaultReminderDateTimeValue(),
+      );
+      setDialogState({ type: "reminder", itemId: id });
+    },
+    [hasReminderAccess, items],
+  );
 
   const handleCategoryUpdate = useCallback(
     async (itemId: string, categoryId: string | null) => {
@@ -493,6 +612,93 @@ export default function HomePage() {
     },
     [categoryNameById, showToast],
   );
+
+  const handleSaveReminder = useCallback(async () => {
+    if (!user || !reminderDialogItem || savingReminder) return;
+
+    if (!telegramConnection?.is_active) {
+      window.location.href = "/my";
+      return;
+    }
+
+    const timezone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
+    let remindAt: string | null = null;
+
+    if (reminderDraftType === "once") {
+      remindAt = parseDateTimeLocalValue(reminderDraftAt);
+      if (!remindAt) {
+        showToast("请先选一个有效的提醒时间。", "error");
+        return;
+      }
+
+      if (new Date(remindAt).getTime() <= Date.now()) {
+        showToast("提醒时间需要晚于当前时间。", "error");
+        return;
+      }
+    } else {
+      remindAt = getNextDailyReminderAt(timezone, 20, 0).toISOString();
+    }
+
+    const hadReminder = Boolean(reminderDialogItem.reminder);
+
+    setSavingReminder(true);
+    try {
+      const savedReminder = await reminderService.upsert({
+        user_id: user.id,
+        collection_id: reminderDialogItem.id,
+        remind_at: remindAt,
+        timezone,
+        reminder_type: reminderDraftType,
+        status: "pending",
+      });
+      const reminder = mapReminderRecordToView(savedReminder);
+
+      setItems((currentItems) =>
+        currentItems.map((item) =>
+          item.id === reminderDialogItem.id ? { ...item, reminder } : item,
+        ),
+      );
+      setDialogState(null);
+      showToast(hadReminder ? "提醒已更新。" : "提醒已设置。");
+    } catch (error) {
+      console.error("Failed to save reminder:", error);
+      showToast(
+        error instanceof Error ? error.message : "保存提醒失败，请重试。",
+        "error",
+      );
+    } finally {
+      setSavingReminder(false);
+    }
+  }, [
+    reminderDialogItem,
+    reminderDraftAt,
+    reminderDraftType,
+    savingReminder,
+    showToast,
+    telegramConnection,
+    user,
+  ]);
+
+  const handleCancelReminder = useCallback(async () => {
+    if (!reminderDialogItem?.reminder?.id) return;
+
+    try {
+      await reminderService.cancel(reminderDialogItem.reminder.id);
+      setItems((currentItems) =>
+        currentItems.map((item) =>
+          item.id === reminderDialogItem.id
+            ? { ...item, reminder: undefined }
+            : item,
+        ),
+      );
+      setDialogState(null);
+      showToast("提醒已取消。");
+    } catch (error) {
+      console.error("Failed to cancel reminder:", error);
+      showToast("取消提醒失败，请重试。", "error");
+    }
+  }, [reminderDialogItem, showToast]);
 
   if (!user) {
     if (authLoading) {
@@ -676,6 +882,139 @@ export default function HomePage() {
         />
       )}
 
+      {dialogState?.type === "reminder" && reminderDialogItem && (
+        <AppDialog
+          title={
+            !hasReminderAccess
+              ? "Telegram 提醒正在内测"
+              : telegramConnection
+              ? reminderDialogItem.reminder
+                ? "修改提醒"
+                : "设置提醒"
+              : "先绑定 Telegram"
+          }
+          description={
+            !hasReminderAccess
+              ? "收藏后可设置单次提醒或每日 20:00 提醒。当前仅对受邀用户开放，正式开放后将作为 Pro 功能提供。"
+              : telegramConnection
+              ? "单次提醒可以自定义时间，重复提醒先固定为每天 20:00。"
+              : "提醒会发到你的 Telegram 私聊。先去「我的」完成绑定，再回来给收藏设提醒。"
+          }
+          confirmText={
+            !hasReminderAccess
+              ? "知道了"
+              : telegramConnection
+              ? savingReminder
+                ? "保存中..."
+                : reminderDialogItem.reminder
+                  ? "保存修改"
+                  : "保存提醒"
+              : "去绑定"
+          }
+          cancelText={hasReminderAccess && telegramConnection ? "取消" : "稍后再说"}
+          onConfirm={() => {
+            if (!hasReminderAccess) {
+              setDialogState(null);
+              return;
+            }
+
+            if (telegramConnection) {
+              void handleSaveReminder();
+              return;
+            }
+
+            window.location.href = "/my";
+          }}
+          onCancel={() => {
+            if (savingReminder) return;
+            setDialogState(null);
+          }}
+        >
+          {!hasReminderAccess ? (
+            <div className='rounded-2xl bg-stone-50 px-3 py-4 text-sm leading-6 text-stone-600'>
+              这会是未来的 Pro 能力：把重要收藏设置成稍后提醒，或每天 20:00 统一回看。
+            </div>
+          ) : telegramConnection ? (
+            <div className='space-y-4'>
+              <div className='rounded-2xl bg-stone-50 px-3 py-3 text-sm text-stone-700'>
+                当前内容：
+                <div className='mt-1 line-clamp-2 font-medium text-stone-900'>
+                  {reminderDialogItem.title}
+                </div>
+              </div>
+
+              <div className='space-y-2'>
+                <label className='flex cursor-pointer items-start gap-3 rounded-2xl border border-stone-200 px-3 py-3 text-sm text-stone-700'>
+                  <input
+                    type='radio'
+                    name='reminder-type'
+                    checked={reminderDraftType === "once"}
+                    onChange={() => setReminderDraftType("once")}
+                    className='mt-0.5'
+                  />
+                  <div>
+                    <div className='font-medium text-stone-900'>
+                      选择一个时间提醒我
+                    </div>
+                    <div className='mt-1 text-xs text-stone-500'>
+                      支持今天、明天或更晚的单次提醒。
+                    </div>
+                  </div>
+                </label>
+
+                <label className='flex cursor-pointer items-start gap-3 rounded-2xl border border-stone-200 px-3 py-3 text-sm text-stone-700'>
+                  <input
+                    type='radio'
+                    name='reminder-type'
+                    checked={reminderDraftType === "daily_20"}
+                    onChange={() => setReminderDraftType("daily_20")}
+                    className='mt-0.5'
+                  />
+                  <div>
+                    <div className='font-medium text-stone-900'>
+                      每天 20:00 提醒我
+                    </div>
+                    <div className='mt-1 text-xs text-stone-500'>
+                      适合晚上统一回看收藏。
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              {reminderDraftType === "once" ? (
+                <label className='block text-sm text-stone-700'>
+                  <div className='mb-1 text-xs text-stone-500'>提醒时间</div>
+                  <input
+                    type='datetime-local'
+                    value={reminderDraftAt}
+                    min={getDefaultReminderDateTimeValue(new Date())}
+                    onChange={(event) => setReminderDraftAt(event.target.value)}
+                    className='w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900'
+                  />
+                </label>
+              ) : (
+                <div className='rounded-2xl border border-dashed border-stone-200 px-3 py-4 text-sm text-stone-500'>
+                  保存后，这条内容会在每天晚上 20:00 提醒你。
+                </div>
+              )}
+
+              {reminderDialogItem.reminder && (
+                <button
+                  type='button'
+                  onClick={() => void handleCancelReminder()}
+                  className='w-full rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-500'>
+                  取消当前提醒
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className='rounded-2xl bg-stone-50 px-3 py-4 text-sm leading-6 text-stone-600'>
+              在 Telegram 里点一次 Start，Revive 才知道以后把提醒发到哪一个账号。
+            </div>
+          )}
+        </AppDialog>
+      )}
+
       {dialogState?.type === "filters" && (
         <AppDialog
           title="筛选收藏"
@@ -812,6 +1151,7 @@ export default function HomePage() {
 
       {previewUrl && (
         <ContentPreview
+          key={previewUrl}
           url={previewUrl}
           onClose={() => setPreviewUrl(null)}
         />

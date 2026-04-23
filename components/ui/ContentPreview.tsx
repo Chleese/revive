@@ -11,10 +11,6 @@ export function ContentPreview({ url, onClose }: ContentPreviewProps) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setLoaded(false);
-  }, [url]);
-
-  useEffect(() => {
     if (loaded) return;
 
     const timer = setTimeout(() => {

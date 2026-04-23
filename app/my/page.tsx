@@ -7,9 +7,18 @@ import { AppDialog } from "@/components/ui/AppDialog";
 import { AppToast } from "@/components/ui/AppToast";
 import { ReviveLoading } from "@/components/ui/ReviveLoading";
 import { useAuth } from "@/app/components/AuthProvider";
+import { useReminderDispatchHeartbeat } from "@/app/hooks/useReminderDispatchHeartbeat";
 import type { CategoryRecord } from "@/lib/categories/types";
 import { authService } from "@/lib/services/auth";
 import { categoryService } from "@/lib/services/categories";
+import { profileService } from "@/lib/services/profile";
+import { telegramService } from "@/lib/services/telegram";
+import {
+  canUseReminders,
+  getReminderAccessDeniedMessage,
+} from "@/lib/profiles/access";
+import type { UserProfileRecord } from "@/lib/profiles/types";
+import type { UserTelegramConnectionRecord } from "@/lib/telegram/types";
 import { generateDefaultName } from "@/lib/username";
 
 type ToastState = { message: string; tone: "info" | "error" } | null;
@@ -24,6 +33,16 @@ export default function MyPage() {
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [toastState, setToastState] = useState<ToastState>(null);
+  const [telegramConnection, setTelegramConnection] =
+    useState<UserTelegramConnectionRecord | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfileRecord | null>(null);
+  const [telegramLoading, setTelegramLoading] = useState(true);
+  const [telegramConnecting, setTelegramConnecting] = useState(false);
+  const [telegramSyncing, setTelegramSyncing] = useState(false);
+  const [telegramDisconnecting, setTelegramDisconnecting] = useState(false);
+  const hasReminderAccess = canUseReminders(userProfile);
+
+  useReminderDispatchHeartbeat(Boolean(user && hasReminderAccess));
 
   const showToast = useCallback(
     (message: string, tone: "info" | "error" = "info") => {
@@ -63,14 +82,37 @@ export default function MyPage() {
     }
   }, [showToast, user]);
 
+  const loadTelegramConnection = useCallback(async () => {
+    if (!user) return;
+
+    setTelegramLoading(true);
+    try {
+      const [connection, profile] = await Promise.all([
+        telegramService.getUserConnection(user.id),
+        profileService.getUserProfile(user.id),
+      ]);
+      setTelegramConnection(connection?.is_active ? connection : null);
+      setUserProfile(profile);
+    } catch (error) {
+      console.error("Failed to load Telegram connection:", error);
+      setTelegramConnection(null);
+      setUserProfile(null);
+    } finally {
+      setTelegramLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!authLoading && user) {
       void loadCategories();
+      void loadTelegramConnection();
     }
     if (!authLoading && !user) {
       setLoading(false);
+      setTelegramLoading(false);
+      setUserProfile(null);
     }
-  }, [authLoading, loadCategories, user]);
+  }, [authLoading, loadCategories, loadTelegramConnection, user]);
 
   const createNewCategory = useCallback(async () => {
     if (!user) return;
@@ -129,6 +171,75 @@ export default function MyPage() {
     router.replace("/login");
   }, [router]);
 
+  const handleTelegramConnect = useCallback(async () => {
+    if (!hasReminderAccess) {
+      showToast(getReminderAccessDeniedMessage(), "error");
+      return;
+    }
+
+    setTelegramConnecting(true);
+    try {
+      const result = await telegramService.createConnectLink();
+      const popup = window.open(result.url, "_blank", "noopener,noreferrer");
+      if (!popup) {
+        window.location.href = result.url;
+      }
+      showToast("Telegram 已打开，点一次 Start 后再回来检查绑定状态。");
+    } catch (error) {
+      console.error("Failed to create Telegram connect link:", error);
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "暂时还没法打开 Telegram 绑定。",
+        "error",
+      );
+    } finally {
+      setTelegramConnecting(false);
+    }
+  }, [hasReminderAccess, showToast]);
+
+  const handleSyncTelegramConnection = useCallback(async () => {
+    if (!hasReminderAccess) {
+      showToast(getReminderAccessDeniedMessage(), "error");
+      return;
+    }
+
+    setTelegramSyncing(true);
+    try {
+      const result = await telegramService.syncUpdates();
+      await loadTelegramConnection();
+      showToast(
+        result.connected
+          ? "Telegram 已绑定，现在可以在首页设置提醒了。"
+          : "还没有检测到绑定，请先在 Telegram 里点一次 Start。",
+      );
+    } catch (error) {
+      console.error("Failed to sync Telegram connection:", error);
+      showToast(
+        error instanceof Error ? error.message : "检查绑定状态失败，请重试。",
+        "error",
+      );
+    } finally {
+      setTelegramSyncing(false);
+    }
+  }, [hasReminderAccess, loadTelegramConnection, showToast]);
+
+  const handleDisconnectTelegram = useCallback(async () => {
+    if (!user) return;
+
+    setTelegramDisconnecting(true);
+    try {
+      await telegramService.disconnect();
+      setTelegramConnection(null);
+      showToast("Telegram 已解绑。");
+    } catch (error) {
+      console.error("Failed to disconnect Telegram:", error);
+      showToast("解绑 Telegram 失败，请重试。", "error");
+    } finally {
+      setTelegramDisconnecting(false);
+    }
+  }, [showToast, user]);
+
   if (!user) {
     if (authLoading) {
       return (
@@ -175,6 +286,66 @@ export default function MyPage() {
               </div>
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className='mb-4 rounded-3xl bg-white p-4 shadow-sm'>
+        <div className='mb-3 text-sm font-medium text-stone-900'>提醒通知</div>
+        <div className='rounded-2xl bg-stone-50 px-4 py-4'>
+          <div className='text-sm font-medium text-stone-900'>
+            {!hasReminderAccess
+              ? "Telegram 提醒正在内测"
+              : telegramLoading
+              ? "正在确认 Telegram 绑定状态"
+              : telegramConnection?.telegram_username
+                ? `已绑定 Telegram @${telegramConnection.telegram_username}`
+                : telegramConnection
+                  ? "已绑定 Telegram"
+                  : "还没有绑定 Telegram"}
+          </div>
+          <div className='mt-1 text-xs leading-5 text-stone-500'>
+            {!hasReminderAccess
+              ? "收藏后可设置单次提醒或每日 20:00 提醒。当前仅对受邀用户开放，正式开放后将作为 Pro 功能提供。"
+              : telegramConnection
+              ? "收藏提醒会通过 Revive Bot 发到你的 Telegram 私聊。"
+              : "先绑定 Telegram，首页的收藏才可以设置单次提醒或每日 20:00 提醒。"}
+          </div>
+          {!hasReminderAccess && (
+            <div className='mt-3 inline-flex rounded-full bg-stone-900 px-3 py-1 text-xs font-medium text-white'>
+              受邀用户可用
+            </div>
+          )}
+          {hasReminderAccess && (
+          <div className='mt-3 flex flex-wrap gap-2'>
+            <button
+              type='button'
+              onClick={() => void handleTelegramConnect()}
+              disabled={telegramConnecting}
+              className='rounded-xl bg-stone-900 px-4 py-2 text-sm text-white disabled:opacity-50'>
+              {telegramConnecting
+                ? "打开中..."
+                : telegramConnection
+                  ? "重新绑定"
+                  : "绑定 Telegram"}
+            </button>
+            <button
+              type='button'
+              onClick={() => void handleSyncTelegramConnection()}
+              disabled={telegramSyncing}
+              className='rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700 disabled:opacity-50'>
+              {telegramSyncing ? "检查中..." : "检查绑定状态"}
+            </button>
+            {telegramConnection && (
+              <button
+                type='button'
+                onClick={() => void handleDisconnectTelegram()}
+                disabled={telegramDisconnecting}
+                className='rounded-xl bg-red-50 px-4 py-2 text-sm text-red-500 disabled:opacity-50'>
+                {telegramDisconnecting ? "解绑中..." : "取消绑定"}
+              </button>
+            )}
+          </div>
+          )}
         </div>
       </div>
 
