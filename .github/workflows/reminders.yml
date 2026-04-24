@@ -1,0 +1,15 @@
+name: Dispatch Reminders
+
+on:
+  schedule:
+    - cron: "* * * * *"
+  workflow_dispatch:
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call dispatch endpoint
+        run: |
+          curl -sf -X POST https://revive-gilt.vercel.app/api/reminders/dispatch \
+            -H "Authorization: Bearer ${{ secrets.REMINDER_CRON_SECRET }}"
