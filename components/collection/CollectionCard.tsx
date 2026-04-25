@@ -8,6 +8,7 @@ import { formatReminderSummary } from "@/lib/reminders/display";
 
 type CollectionCardProps = {
   item: CollectionItemView;
+  layout?: "grid" | "list";
   onOpen: (id: string, url: string) => void;
   onRequestReminder: (id: string) => void;
   onEditCategory: (id: string) => void;
@@ -19,6 +20,7 @@ type CollectionCardProps = {
 
 export function CollectionCard({
   item,
+  layout = "grid",
   onOpen,
   onRequestReminder,
   onEditCategory,
@@ -35,6 +37,7 @@ export function CollectionCard({
   const reminderLabel = item.reminder
     ? formatReminderSummary(item.reminder)
     : null;
+  const isGrid = layout === "grid";
   const imageSrc =
     item.image && /^https?:\/\//i.test(item.image)
       ? `/api/image?url=${encodeURIComponent(item.image)}&source=${encodeURIComponent(item.url)}`
@@ -87,9 +90,9 @@ export function CollectionCard({
           handleOpen();
         }
       }}
-      className='bg-white rounded-xl shadow-sm overflow-visible transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15 cursor-pointer'>
+      className={`bg-white ${isGrid ? "rounded-lg" : "rounded-xl"} shadow-sm overflow-visible transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15 cursor-pointer`}>
       {shouldShowImage && imageSrc && (
-        <div className='relative aspect-video w-full overflow-hidden rounded-t-xl bg-gray-100'>
+        <div className={`relative w-full overflow-hidden bg-gray-100 ${isGrid ? "aspect-4/3 rounded-t-lg" : "aspect-video rounded-t-xl"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageSrc}
@@ -101,7 +104,7 @@ export function CollectionCard({
         </div>
       )}
 
-      <div className='p-3'>
+      <div className={isGrid ? "p-2.5" : "p-3"}>
         {item.isEditing ? (
           <div className='mb-2' onClick={(event) => event.stopPropagation()}>
             <input
@@ -128,23 +131,19 @@ export function CollectionCard({
           </div>
         ) : (
           <>
-            <div className='font-medium mb-1 text-gray-900 line-clamp-2'>
+            <div className={`font-medium text-gray-900 line-clamp-2 ${isGrid ? "mb-1 text-sm" : "mb-1"}`}>
               {item.title}
             </div>
-            <div className='text-xs text-gray-700 mb-2 flex items-center gap-2'>
-              <PlatformIcon platform={item.platform} size={16} />
-              {getPlatformName(item.platform)}
-              {item.needsEdit && (
-                <span className='bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-xs'>
-                  标题待编辑
-                </span>
-              )}
-            </div>
-            {reminderLabel && (
-              <div className='mb-2 text-xs text-stone-500'>{reminderLabel}</div>
-            )}
-
-            <div className='flex justify-between items-center'>
+            <div className={`text-xs text-gray-700 flex items-center justify-between ${isGrid ? "mb-1" : "mb-2"}`}>
+              <span className="flex items-center gap-2">
+                <PlatformIcon platform={item.platform} size={16} />
+                {getPlatformName(item.platform)}
+                {item.needsEdit && (
+                  <span className='bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-xs'>
+                    标题待编辑
+                  </span>
+                )}
+              </span>
               <span
                 className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs ${
                   item.categoryName
@@ -153,7 +152,12 @@ export function CollectionCard({
                 }`}>
                 {categoryLabel}
               </span>
+            </div>
+            {reminderLabel && (
+              <div className={`text-xs text-stone-500 ${isGrid ? "mb-1" : "mb-2"}`}>{reminderLabel}</div>
+            )}
 
+            <div className='flex justify-end items-center'>
               <div
                 ref={menuRef}
                 className='relative'

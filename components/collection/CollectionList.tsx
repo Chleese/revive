@@ -4,6 +4,7 @@ import type { CollectionItemView } from "@/lib/collections/types";
 
 type CollectionListProps = {
   items: CollectionItemView[];
+  layout?: "grid" | "list";
   onOpen: (id: string, url: string) => void;
   onRequestReminder: (id: string) => void;
   onEditCategory: (id: string) => void;
@@ -16,6 +17,7 @@ type CollectionListProps = {
 
 export function CollectionList({
   items,
+  layout = "grid",
   onOpen,
   onRequestReminder,
   onEditCategory,
@@ -93,16 +95,18 @@ export function CollectionList({
   }, [updateActiveIndex]);
 
   return (
-    <div className="space-y-3">
+    <div className={layout === "grid" ? "columns-2 sm:columns-3 lg:columns-4 gap-3" : "space-y-3"}>
       {items.map((item, index) => (
         <div
           key={item.id}
           ref={(node) => {
             itemRefs.current[index] = node;
           }}
+          className={layout === "grid" ? "break-inside-avoid mb-3" : undefined}
         >
           <CollectionCard
             item={item}
+            layout={layout}
             onOpen={onOpen}
             onRequestReminder={onRequestReminder}
             onEditCategory={onEditCategory}

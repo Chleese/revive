@@ -72,6 +72,10 @@ export default function HomePage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [clipboardSupported, setClipboardSupported] = useState(true);
+  const [layout, setLayout] = useState<"grid" | "list">(() => {
+    if (typeof window === "undefined") return "list";
+    return (localStorage.getItem("revive-layout") as "grid" | "list") ?? "list";
+  });
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [toastState, setToastState] = useState<ToastState>(null);
   const [activeItemIndex, setActiveItemIndex] = useState(1);
@@ -739,6 +743,7 @@ export default function HomePage() {
         onPaste={pasteFromClipboard}
         onSubmit={() => addItem()}
       />
+
       {hasActiveFilters && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {selectedPlatformFilter !== "all" && (
@@ -820,8 +825,35 @@ export default function HomePage() {
           当前筛选条件下还没有匹配内容，换个分类或平台试试。
         </div>
       ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              const next = layout === "grid" ? "list" : "grid";
+              setLayout(next);
+              localStorage.setItem("revive-layout", next);
+            }}
+            className="fixed bottom-46 right-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/45 bg-white/42 text-stone-900 shadow-[0_10px_28px_rgba(15,23,42,0.08)] ring-1 ring-stone-200/25 backdrop-blur-xl hover:bg-white/60"
+            aria-label={layout === "grid" ? "切换为列表布局" : "切换为瀑布流布局"}
+          >
+            {layout === "grid" ? (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+            )}
+          </button>
         <CollectionList
           items={filteredItems}
+          layout={layout}
           onOpen={handleOpen}
           onRequestReminder={handleRequestReminder}
           onEditCategory={(id) => setDialogState({ type: "itemCategory", itemId: id })}
@@ -831,6 +863,7 @@ export default function HomePage() {
           onDelete={(id) => setDialogState({ type: "delete", itemId: id })}
           onActiveIndexChange={setActiveItemIndex}
         />
+        </>
       )}
 
       {!loading && !loadError && filteredItems.length > 0 && (
