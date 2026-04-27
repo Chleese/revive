@@ -107,6 +107,8 @@ export function CollectionList({
           <CollectionCard
             item={item}
             layout={layout}
+            itemIndex={index}
+            totalItems={items.length}
             onOpen={onOpen}
             onRequestReminder={onRequestReminder}
             onEditCategory={onEditCategory}

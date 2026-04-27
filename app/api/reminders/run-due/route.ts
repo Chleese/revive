@@ -29,6 +29,7 @@ export async function POST() {
       await dispatchDueReminders({
         userId: user.id,
         limit: 20,
+        source: "page_heartbeat",
       }),
     );
   } catch (error) {

@@ -12,7 +12,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    return NextResponse.json(await dispatchDueReminders());
+    return NextResponse.json(
+      await dispatchDueReminders({
+        source: "scheduled_dispatch",
+      }),
+    );
   } catch (error) {
     return NextResponse.json(
       {

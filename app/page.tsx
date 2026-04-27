@@ -56,6 +56,19 @@ type DialogState =
 
 type ToastState = { message: string; tone: "info" | "error" } | null;
 
+function pickBottomReachedMessage(total: number) {
+  const variants = [
+    `当前到底，共 ${total} 条`,
+    `第 ${total} 条 · 没有更多了`,
+    "已全部看完，真棒",
+    `${total} 条全部解锁`,
+    "就这些了，去添加新的吧",
+    "- END -",
+  ];
+
+  return variants[Math.floor(Math.random() * variants.length)] ?? variants[0];
+}
+
 export default function HomePage() {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<CollectionItemView[]>([]);
@@ -79,6 +92,8 @@ export default function HomePage() {
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [toastState, setToastState] = useState<ToastState>(null);
   const [activeItemIndex, setActiveItemIndex] = useState(1);
+  const [isNearListBottom, setIsNearListBottom] = useState(false);
+  const [bottomReachedMessage, setBottomReachedMessage] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pendingCategoryId, setPendingCategoryId] = useState<
     string | null | undefined
@@ -94,6 +109,7 @@ export default function HomePage() {
   const [savingReminder, setSavingReminder] = useState(false);
   const attemptedImageBackfillIds = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
+  const listEndRef = useRef<HTMLDivElement>(null);
   const hasReminderAccess = canUseReminders(userProfile);
 
   useReminderDispatchHeartbeat(Boolean(user && hasReminderAccess));
@@ -168,6 +184,48 @@ export default function HomePage() {
 
   useEffect(() => {
     setActiveItemIndex(filteredItems.length ? 1 : 0);
+  }, [filteredItems.length]);
+
+  useEffect(() => {
+    if (!filteredItems.length) {
+      setIsNearListBottom(false);
+      setBottomReachedMessage("");
+      return;
+    }
+
+    const node = listEndRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+
+        if (entry.isIntersecting) {
+          setIsNearListBottom((current) => {
+            if (!current) {
+              setBottomReachedMessage(
+                pickBottomReachedMessage(filteredItems.length),
+              );
+            }
+            return true;
+          });
+        } else {
+          setIsNearListBottom(false);
+        }
+      },
+      {
+        root: null,
+        rootMargin: "0px 0px 120px 0px",
+        threshold: 0,
+      },
+    );
+
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+    };
   }, [filteredItems.length]);
 
   const handleInputPaste = useCallback((value: string) => {
@@ -863,10 +921,16 @@ export default function HomePage() {
           onDelete={(id) => setDialogState({ type: "delete", itemId: id })}
           onActiveIndexChange={setActiveItemIndex}
         />
+        <div ref={listEndRef} className="h-1" aria-hidden="true" />
+        {isNearListBottom && bottomReachedMessage && (
+          <div className="mt-4 mb-2 text-center text-sm font-medium tracking-[0.02em] text-stone-400">
+            {bottomReachedMessage}
+          </div>
+        )}
         </>
       )}
 
-      {!loading && !loadError && filteredItems.length > 0 && (
+      {!loading && !loadError && filteredItems.length > 0 && !isNearListBottom && (
         <FloatingCounter current={visibleCounter} total={filteredItems.length} />
       )}
 

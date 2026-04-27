@@ -13,20 +13,31 @@ type ReminderCollection = {
   platform: string;
 };
 
+export type ReminderDispatchSource = "page_heartbeat" | "scheduled_dispatch";
+
 export type ReminderDispatchResult = {
+  source: ReminderDispatchSource;
   processed: number;
   sentCount: number;
   failedCount: number;
   skippedCount: number;
 };
 
-function buildReminderText(collection: ReminderCollection) {
+function getDispatchSourceLabel(source: ReminderDispatchSource) {
+  return source === "page_heartbeat" ? "页面在线补发" : "后台定时任务";
+}
+
+function buildReminderText(
+  collection: ReminderCollection,
+  source: ReminderDispatchSource,
+) {
   return [
     "提醒你看这条收藏",
     "",
     `标题：${collection.title}`,
     `平台：${getPlatformName(collection.platform as never)}`,
     `链接：${collection.url}`,
+    `触发来源：${getDispatchSourceLabel(source)}`,
     "",
     "现在打开看看",
   ].join("\n");
@@ -36,10 +47,12 @@ export async function dispatchDueReminders(options?: {
   userId?: string;
   now?: Date;
   limit?: number;
+  source?: ReminderDispatchSource;
 }): Promise<ReminderDispatchResult> {
   const adminClient = createAdminClient();
   const now = options?.now ?? new Date();
   const nowIso = now.toISOString();
+  const source = options?.source ?? "scheduled_dispatch";
 
   let remindersQuery = adminClient
     .from("item_reminders")
@@ -151,7 +164,7 @@ export async function dispatchDueReminders(options?: {
     try {
       await sendTelegramMessage(
         connection.telegram_chat_id,
-        buildReminderText(collection),
+        buildReminderText(collection, source),
       );
 
       if ((reminder.reminder_type ?? "once") === "daily_20") {
@@ -180,6 +193,12 @@ export async function dispatchDueReminders(options?: {
       }
 
       sentCount += 1;
+      console.info("Reminder dispatched", {
+        reminderId: reminder.id,
+        source,
+        userId: reminder.user_id,
+        collectionId: reminder.collection_id,
+      });
     } catch (sendError) {
       console.error("Failed to dispatch reminder:", sendError);
       failedCount += 1;
@@ -208,6 +227,7 @@ export async function dispatchDueReminders(options?: {
   }
 
   return {
+    source,
     processed: dueReminders.length,
     sentCount,
     failedCount,

@@ -9,6 +9,8 @@ import { formatReminderSummary } from "@/lib/reminders/display";
 type CollectionCardProps = {
   item: CollectionItemView;
   layout?: "grid" | "list";
+  itemIndex?: number;
+  totalItems?: number;
   onOpen: (id: string, url: string) => void;
   onRequestReminder: (id: string) => void;
   onEditCategory: (id: string) => void;
@@ -21,6 +23,8 @@ type CollectionCardProps = {
 export function CollectionCard({
   item,
   layout = "grid",
+  itemIndex = 0,
+  totalItems = 0,
   onOpen,
   onRequestReminder,
   onEditCategory,
@@ -38,6 +42,7 @@ export function CollectionCard({
     ? formatReminderSummary(item.reminder)
     : null;
   const isGrid = layout === "grid";
+  const shouldOpenMenuLeft = totalItems - itemIndex <= 2;
   const imageSrc =
     item.image && /^https?:\/\//i.test(item.image)
       ? `/api/image?url=${encodeURIComponent(item.image)}&source=${encodeURIComponent(item.url)}`
@@ -170,7 +175,13 @@ export function CollectionCard({
                   更多
                 </button>
                 {menuOpen && (
-                  <div className='absolute right-0 top-10 z-10 min-w-36 rounded-xl border border-gray-100 bg-white p-1 shadow-lg'>
+                  <div
+                    className={`absolute z-10 min-w-36 rounded-xl border border-gray-100 bg-white p-1 shadow-lg ${
+                      shouldOpenMenuLeft
+                        ? "right-full bottom-0 mr-2"
+                        : "right-0 top-10"
+                    }`}
+                  >
                     <button
                       type='button'
                       onClick={() => {
