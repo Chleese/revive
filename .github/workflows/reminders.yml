@@ -11,5 +11,5 @@ jobs:
     steps:
       - name: Call dispatch endpoint
         run: |
-          curl --fail-with-body --show-error --silent -X POST https://revive-gilt.vercel.app/api/reminders/dispatch \
+          curl --location --fail-with-body --show-error --silent -X POST https://revive-gilt.vercel.app/api/reminders/dispatch \
             -H "Authorization: Bearer ${{ secrets.REMINDER_CRON_SECRET }}"

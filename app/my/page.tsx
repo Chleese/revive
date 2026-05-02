@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { AppDialog } from "@/components/ui/AppDialog";
 import { AppToast } from "@/components/ui/AppToast";
+import { OfflineNotice } from "@/components/ui/OfflineNotice";
 import { ReviveLoading } from "@/components/ui/ReviveLoading";
 import { useAuth } from "@/app/components/AuthProvider";
 import { useReminderDispatchHeartbeat } from "@/app/hooks/useReminderDispatchHeartbeat";
+import { useOfflineStatus } from "@/app/hooks/useOfflineStatus";
 import type { CategoryRecord } from "@/lib/categories/types";
 import { authService } from "@/lib/services/auth";
 import { categoryService } from "@/lib/services/categories";
@@ -41,6 +43,7 @@ export default function MyPage() {
   const [telegramSyncing, setTelegramSyncing] = useState(false);
   const [telegramDisconnecting, setTelegramDisconnecting] = useState(false);
   const hasReminderAccess = canUseReminders(userProfile);
+  const isOffline = useOfflineStatus();
 
   useReminderDispatchHeartbeat(Boolean(user && hasReminderAccess));
 
@@ -258,6 +261,7 @@ export default function MyPage() {
 
   return (
     <div className='flex min-h-screen flex-col bg-gray-50 p-4 pb-20'>
+      {isOffline && <OfflineNotice />}
       <div className='mb-4 rounded-3xl bg-white p-5 shadow-sm'>
         <div className='flex items-center gap-4'>
           <div className='flex h-14 w-14 items-center justify-center rounded-full bg-stone-900 text-lg font-semibold text-white'>

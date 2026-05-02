@@ -41,8 +41,10 @@ import { BottomNav } from "@/components/navigation/BottomNav";
 import { AppDialog } from "@/components/ui/AppDialog";
 import { AppToast } from "@/components/ui/AppToast";
 import { ContentPreview } from "@/components/ui/ContentPreview";
+import { OfflineNotice } from "@/components/ui/OfflineNotice";
 import { ReviveLoading } from "@/components/ui/ReviveLoading";
 import { useReminderDispatchHeartbeat } from "@/app/hooks/useReminderDispatchHeartbeat";
+import { useOfflineStatus } from "@/app/hooks/useOfflineStatus";
 import { ClipboardPrompt } from "./components/ClipboardPrompt";
 import { useAuth } from "./components/AuthProvider";
 
@@ -111,6 +113,7 @@ export default function HomePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const listEndRef = useRef<HTMLDivElement>(null);
   const hasReminderAccess = canUseReminders(userProfile);
+  const isOffline = useOfflineStatus();
 
   useReminderDispatchHeartbeat(Boolean(user && hasReminderAccess));
 
@@ -228,9 +231,16 @@ export default function HomePage() {
     };
   }, [filteredItems.length]);
 
-  const handleInputPaste = useCallback((value: string) => {
-    setInput(value);
-  }, []);
+  const handleInputPaste = useCallback(
+    (value: string) => {
+      setInput(value);
+
+      if (isOffline && extractUrl(value.trim())) {
+        showToast("链接已粘贴，但当前无网络，恢复连接后再添加。");
+      }
+    },
+    [isOffline, showToast],
+  );
 
   const checkClipboard = useCallback(async () => {
     try {
@@ -478,6 +488,12 @@ export default function HomePage() {
         return;
       }
 
+      if (isOffline) {
+        setSubmitting(false);
+        showToast("当前无网络，暂时无法保存链接。", "error");
+        return;
+      }
+
       const resolvedMetadata = await resolveRemoteMetadata(rawInput);
       const platform = resolvedMetadata?.platform ?? detectPlatform(targetUrl);
       const title = resolvedMetadata?.title ?? targetUrl;
@@ -526,6 +542,7 @@ export default function HomePage() {
     [
       categoryNameById,
       input,
+      isOffline,
       resolveRemoteMetadata,
       showToast,
       submitting,
@@ -778,6 +795,7 @@ export default function HomePage() {
 
   return (
     <div className='min-h-screen bg-gray-50 p-4 pb-20'>
+      {isOffline && <OfflineNotice />}
       <div className='flex justify-between items-center mb-4'>
         <h1 className='text-xl font-bold text-gray-900'>Revive</h1>
         <button
