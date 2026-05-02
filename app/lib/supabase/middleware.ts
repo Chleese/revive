@@ -33,7 +33,12 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // 不需要登录就能访问的页面
-  const publicPaths = ['/login', '/reset-password', '/auth/callback']
+  const publicPaths = [
+    '/login',
+    '/reset-password',
+    '/auth/callback',
+    '/api/reminders/dispatch',
+  ]
 
   if (!user && !publicPaths.some(path => pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
