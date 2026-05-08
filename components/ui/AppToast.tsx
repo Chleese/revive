@@ -26,7 +26,7 @@ export function AppToast({
     : "border-stone-200 bg-white text-stone-700";
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[86px] z-50 flex justify-center px-4">
       <div
         role="status"
         className={`pointer-events-auto inline-flex max-w-sm items-center gap-3 rounded-full border px-4 py-3 text-sm shadow-[0_20px_50px_rgba(15,23,42,0.12)] ${toneClassName}`}

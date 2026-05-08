@@ -5,6 +5,16 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Revive",
   description: "收藏夹管理工具",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Revive",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({

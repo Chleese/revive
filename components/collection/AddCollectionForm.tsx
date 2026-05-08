@@ -41,7 +41,7 @@ export function AddCollectionForm({
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
             onPaste={handlePaste}
-            placeholder='粘贴链接...'
+            placeholder='当前版本仅支持链接收藏'
             className='w-full p-2 pr-8 border rounded-lg text-gray-900 placeholder:text-gray-400'
           />
           {input && (
@@ -66,7 +66,7 @@ export function AddCollectionForm({
       </div>
       {!clipboardSupported && (
         <p className='mt-2 text-xs text-gray-500'>
-          当前地址不支持直接读取系统剪贴板，请长按输入框手动粘贴链接。
+          当前地址不支持直接读取系统剪贴板，请长按输入框手动粘贴链接或直接点击粘贴按钮。
         </p>
       )}
     </div>

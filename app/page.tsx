@@ -45,6 +45,7 @@ import { OfflineNotice } from "@/components/ui/OfflineNotice";
 import { ReviveLoading } from "@/components/ui/ReviveLoading";
 import { useReminderDispatchHeartbeat } from "@/app/hooks/useReminderDispatchHeartbeat";
 import { useOfflineStatus } from "@/app/hooks/useOfflineStatus";
+import { usePullToRefresh } from "@/app/hooks/usePullToRefresh";
 import { ClipboardPrompt } from "./components/ClipboardPrompt";
 import { useAuth } from "./components/AuthProvider";
 
@@ -114,6 +115,7 @@ export default function HomePage() {
   const listEndRef = useRef<HTMLDivElement>(null);
   const hasReminderAccess = canUseReminders(userProfile);
   const isOffline = useOfflineStatus();
+  const { pullDistance, isRefreshing } = usePullToRefresh();
 
   useReminderDispatchHeartbeat(Boolean(user && hasReminderAccess));
 
@@ -481,12 +483,19 @@ export default function HomePage() {
       setSubmitting(true);
       const rawInput = (overrideInput ?? input).trim();
       const extractedUrl = extractUrl(rawInput);
-      const targetUrl = extractedUrl || rawInput;
 
-      if (!targetUrl) {
+      if (!rawInput) {
         setSubmitting(false);
         return;
       }
+
+      if (!extractedUrl) {
+        setSubmitting(false);
+        showToast("当前先支持保存链接，纯文字收藏后续会支持。", "error");
+        return;
+      }
+
+      const targetUrl = extractedUrl;
 
       if (isOffline) {
         setSubmitting(false);
@@ -795,6 +804,14 @@ export default function HomePage() {
 
   return (
     <div className='min-h-screen bg-gray-50 p-4 pb-20'>
+      {pullDistance > 0 && (
+        <div
+          className='flex items-center justify-center text-xs text-stone-400 transition-opacity'
+          style={{ height: pullDistance, opacity: pullDistance / 60 }}
+        >
+          {isRefreshing ? "刷新中..." : "下拉刷新"}
+        </div>
+      )}
       {isOffline && <OfflineNotice />}
       <div className='flex justify-between items-center mb-4'>
         <h1 className='text-xl font-bold text-gray-900'>Revive</h1>
