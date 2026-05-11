@@ -260,32 +260,32 @@ export default function MyPage() {
   const profileLabel = user.email?.slice(0, 1).toUpperCase() ?? "R";
 
   return (
-    <div className='flex min-h-screen flex-col bg-gray-50 p-4 pb-20'>
+    <div className='theme-page flex min-h-screen flex-col p-4 pb-20'>
       {isOffline && <OfflineNotice />}
-      <div className='mb-4 rounded-3xl bg-white p-5 shadow-sm'>
+      <div className='theme-panel mb-4 rounded-3xl p-5'>
         <div className='flex items-center gap-4'>
-          <div className='flex h-14 w-14 items-center justify-center rounded-full bg-stone-900 text-lg font-semibold text-white'>
+          <div className='flex h-14 w-14 items-center justify-center rounded-full bg-[var(--foreground)] text-lg font-semibold text-[var(--background)]'>
             {profileLabel}
           </div>
           <div className='min-w-0 flex-1'>
-            <div className='text-lg font-semibold text-stone-900'>{defaultName}</div>
-            <div className='truncate text-sm text-stone-500'>
+            <div className='text-lg font-semibold text-[var(--foreground)]'>{defaultName}</div>
+            <div className='theme-text-muted truncate text-sm'>
               {user.email ?? "已登录用户"}
             </div>
           </div>
         </div>
       </div>
 
-      <div className='mb-4 rounded-3xl bg-white p-4 shadow-sm'>
-        <div className='mb-3 text-sm font-medium text-stone-900'>内容管理</div>
+      <div className='theme-panel mb-4 rounded-3xl p-4'>
+        <div className='mb-3 text-sm font-medium text-[var(--foreground)]'>内容管理</div>
         <div className='overflow-x-auto'>
           <div className='flex gap-3'>
             <button
               type='button'
               onClick={() => setDialogState("categories")}
-              className='min-w-[132px] rounded-2xl bg-stone-100 px-4 py-4 text-left text-stone-900 transition-colors hover:bg-stone-200'>
+              className='theme-secondary-button min-w-[132px] rounded-2xl px-4 py-4 text-left transition-colors'>
               <div className='text-sm font-medium'>分类管理</div>
-              <div className='mt-1 text-xs text-stone-500'>
+              <div className='theme-text-muted mt-1 text-xs'>
                 新建、查看和删除分类
               </div>
             </button>
@@ -293,10 +293,10 @@ export default function MyPage() {
         </div>
       </div>
 
-      <div className='mb-4 rounded-3xl bg-white p-4 shadow-sm'>
-        <div className='mb-3 text-sm font-medium text-stone-900'>提醒通知</div>
-        <div className='rounded-2xl bg-stone-50 px-4 py-4'>
-          <div className='text-sm font-medium text-stone-900'>
+      <div className='theme-panel mb-4 rounded-3xl p-4'>
+        <div className='mb-3 text-sm font-medium text-[var(--foreground)]'>提醒通知</div>
+        <div className='theme-panel-muted rounded-2xl px-4 py-4'>
+          <div className='text-sm font-medium text-[var(--foreground)]'>
             {!hasReminderAccess
               ? "Telegram 提醒正在内测"
               : telegramLoading
@@ -307,7 +307,7 @@ export default function MyPage() {
                   ? "已绑定 Telegram"
                   : "还没有绑定 Telegram"}
           </div>
-          <div className='mt-1 text-xs leading-5 text-stone-500'>
+          <div className='theme-text-muted mt-1 text-xs leading-5'>
             {!hasReminderAccess
               ? "收藏后可设置单次提醒或每日 20:00 提醒。当前仅对受邀用户开放，正式开放后将作为 Pro 功能提供。"
               : telegramConnection
@@ -315,7 +315,7 @@ export default function MyPage() {
               : "先绑定 Telegram，首页的收藏才可以设置单次提醒或每日 20:00 提醒。"}
           </div>
           {!hasReminderAccess && (
-            <div className='mt-3 inline-flex rounded-full bg-stone-900 px-3 py-1 text-xs font-medium text-white'>
+            <div className='theme-primary-button mt-3 inline-flex rounded-full px-3 py-1 text-xs font-medium'>
               受邀用户可用
             </div>
           )}
@@ -325,7 +325,7 @@ export default function MyPage() {
               type='button'
               onClick={() => void handleTelegramConnect()}
               disabled={telegramConnecting}
-              className='rounded-xl bg-stone-900 px-4 py-2 text-sm text-white disabled:opacity-50'>
+              className='theme-primary-button rounded-xl px-4 py-2 text-sm disabled:opacity-50'>
               {telegramConnecting
                 ? "打开中..."
                 : telegramConnection
@@ -336,7 +336,7 @@ export default function MyPage() {
               type='button'
               onClick={() => void handleSyncTelegramConnection()}
               disabled={telegramSyncing}
-              className='rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm text-stone-700 disabled:opacity-50'>
+              className='theme-secondary-button theme-border rounded-xl border px-4 py-2 text-sm disabled:opacity-50'>
               {telegramSyncing ? "检查中..." : "检查绑定状态"}
             </button>
             {telegramConnection && (
@@ -344,7 +344,7 @@ export default function MyPage() {
                 type='button'
                 onClick={() => void handleDisconnectTelegram()}
                 disabled={telegramDisconnecting}
-                className='rounded-xl bg-red-50 px-4 py-2 text-sm text-red-500 disabled:opacity-50'>
+                className='theme-danger-soft rounded-xl px-4 py-2 text-sm disabled:opacity-50'>
                 {telegramDisconnecting ? "解绑中..." : "取消绑定"}
               </button>
             )}
@@ -357,7 +357,7 @@ export default function MyPage() {
         <button
           type='button'
           onClick={() => void handleSignOut()}
-          className='mx-auto block w-full max-w-sm rounded-2xl bg-stone-900 px-4 py-3 text-sm font-medium text-white'>
+          className='theme-primary-button mx-auto block w-full max-w-sm rounded-2xl px-4 py-3 text-sm font-medium'>
           退出登录
         </button>
       </div>
@@ -371,26 +371,26 @@ export default function MyPage() {
           onCancel={() => setDialogState(null)}>
           <div className='space-y-4'>
             <div>
-              <div className='mb-2 text-xs text-stone-500'>新建分类</div>
+              <div className='theme-text-muted mb-2 text-xs'>新建分类</div>
               <div className='flex gap-2'>
                 <input
                   value={newCategoryName}
                   onChange={(event) => setNewCategoryName(event.target.value)}
                   placeholder='例如：健身'
-                  className='w-full rounded-xl border border-stone-200 px-3 py-2.5 text-sm text-stone-900 placeholder:text-stone-400'
+                  className='theme-input w-full rounded-xl border px-3 py-2.5 text-sm'
                 />
                 <button
                   type='button'
                   onClick={() => void createNewCategory()}
                   disabled={creatingCategory || !newCategoryName.trim()}
-                  className='rounded-xl bg-stone-900 px-4 py-2.5 text-sm text-white disabled:opacity-50'>
+                  className='theme-primary-button rounded-xl px-4 py-2.5 text-sm disabled:opacity-50'>
                   {creatingCategory ? "创建中..." : "新建"}
                 </button>
               </div>
             </div>
 
             <div>
-              <div className='mb-2 text-xs text-stone-500'>
+              <div className='theme-text-muted mb-2 text-xs'>
                 已有分类 · {sortedCategories.length}
               </div>
               {loading ? (
@@ -400,7 +400,7 @@ export default function MyPage() {
                   detail='马上就好。'
                 />
               ) : sortedCategories.length === 0 ? (
-                <div className='rounded-2xl border border-dashed border-stone-200 px-3 py-4 text-sm text-stone-500'>
+                <div className='theme-border theme-text-muted rounded-2xl border border-dashed px-3 py-4 text-sm'>
                   还没有分类，先创建一个试试。
                 </div>
               ) : (
@@ -408,8 +408,8 @@ export default function MyPage() {
                   {sortedCategories.map((category) => (
                     <div
                       key={category.id}
-                      className='flex items-center justify-between rounded-2xl border border-stone-100 px-3 py-3'>
-                      <div className='text-sm text-stone-900'>
+                      className='theme-panel-muted theme-border flex items-center justify-between rounded-2xl border px-3 py-3'>
+                      <div className='text-sm text-[var(--foreground)]'>
                         {category.name}
                       </div>
                       <button
@@ -417,7 +417,7 @@ export default function MyPage() {
                         onClick={() =>
                           setDialogState({ type: "delete", id: category.id })
                         }
-                        className='rounded-lg bg-red-50 px-3 py-1.5 text-sm text-red-500'>
+                        className='theme-danger-soft rounded-lg px-3 py-1.5 text-sm'>
                         删除
                       </button>
                     </div>

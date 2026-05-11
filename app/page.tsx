@@ -43,6 +43,7 @@ import { AppToast } from "@/components/ui/AppToast";
 import { ContentPreview } from "@/components/ui/ContentPreview";
 import { OfflineNotice } from "@/components/ui/OfflineNotice";
 import { ReviveLoading } from "@/components/ui/ReviveLoading";
+import { ThemeToggleButton } from "@/components/ui/ThemeToggleButton";
 import { useReminderDispatchHeartbeat } from "@/app/hooks/useReminderDispatchHeartbeat";
 import { useOfflineStatus } from "@/app/hooks/useOfflineStatus";
 import { usePullToRefresh } from "@/app/hooks/usePullToRefresh";
@@ -803,10 +804,10 @@ export default function HomePage() {
   }
 
   return (
-    <div className='min-h-screen bg-gray-50 p-4 pb-20'>
+    <div className='theme-page min-h-screen p-4 pb-20'>
       {pullDistance > 0 && (
         <div
-          className='flex items-center justify-center text-xs text-stone-400 transition-opacity'
+          className='theme-text-subtle flex items-center justify-center text-xs transition-opacity'
           style={{ height: pullDistance, opacity: pullDistance / 60 }}
         >
           {isRefreshing ? "刷新中..." : "下拉刷新"}
@@ -814,15 +815,18 @@ export default function HomePage() {
       )}
       {isOffline && <OfflineNotice />}
       <div className='flex justify-between items-center mb-4'>
-        <h1 className='text-xl font-bold text-gray-900'>Revive</h1>
-        <button
-          onClick={async () => {
-            await authService.signOut();
-            window.location.replace("/login");
-          }}
-          className='text-sm text-gray-500'>
-          登出
-        </button>
+        <h1 className='text-xl font-bold text-[var(--foreground)]'>Revive</h1>
+        <div className="flex items-center gap-2">
+          <ThemeToggleButton />
+          <button
+            onClick={async () => {
+              await authService.signOut();
+              window.location.replace("/login");
+            }}
+            className='theme-secondary-button rounded-full px-3 py-1.5 text-sm font-medium transition-colors'>
+            登出
+          </button>
+        </div>
       </div>
 
       <AddCollectionForm
@@ -843,20 +847,20 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setSelectedPlatformFilter("all")}
-              className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-700 hover:bg-stone-200"
+              className="theme-secondary-button inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs transition-colors"
             >
               {getPlatformName(selectedPlatformFilter)}
-              <span className="text-stone-400">&times;</span>
+              <span className="theme-text-subtle">&times;</span>
             </button>
           )}
           {selectedCategoryFilter !== "all" && categoryNameById[selectedCategoryFilter] && (
             <button
               type="button"
               onClick={() => setSelectedCategoryFilter("all")}
-              className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-700 hover:bg-stone-200"
+              className="theme-secondary-button inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs transition-colors"
             >
               {categoryNameById[selectedCategoryFilter]}
-              <span className="text-stone-400">&times;</span>
+              <span className="theme-text-subtle">&times;</span>
             </button>
           )}
           <button
@@ -865,7 +869,7 @@ export default function HomePage() {
               setSelectedPlatformFilter("all");
               setSelectedCategoryFilter("all");
             }}
-            className="text-xs text-stone-400 hover:text-stone-600"
+            className="theme-text-muted text-xs transition-opacity hover:opacity-80"
           >
             清除全部
           </button>
@@ -876,15 +880,15 @@ export default function HomePage() {
       <button
         type="button"
         onClick={() => setDialogState({ type: "filters" })}
-        className="fixed bottom-34 right-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/45 bg-white/42 text-stone-900 shadow-[0_10px_28px_rgba(15,23,42,0.08)] ring-1 ring-stone-200/25 backdrop-blur-xl hover:bg-white/60"
+        className="theme-floating theme-border fixed bottom-34 right-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-xl transition-colors"
       >
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <line x1="3" y1="5" x2="21" y2="5" />
           <line x1="3" y1="12" x2="21" y2="12" />
           <line x1="3" y1="19" x2="21" y2="19" />
-          <circle cx="8" cy="5" r="2" fill="white" />
-          <circle cx="16" cy="12" r="2" fill="white" />
-          <circle cx="11" cy="19" r="2" fill="white" />
+          <circle cx="8" cy="5" r="2" fill="currentColor" />
+          <circle cx="16" cy="12" r="2" fill="currentColor" />
+          <circle cx="11" cy="19" r="2" fill="currentColor" />
         </svg>
         {hasActiveFilters && (
           <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500" />
@@ -898,23 +902,23 @@ export default function HomePage() {
           detail='标题、封面和状态正在同步。'
         />
       ) : loadError ? (
-        <div className='rounded-xl bg-white p-4 shadow-sm text-center'>
-          <div className='text-gray-900 mb-3'>列表加载失败，请重试</div>
+        <div className='theme-panel rounded-xl p-4 text-center'>
+          <div className='mb-3 text-[var(--foreground)]'>列表加载失败，请重试</div>
           {errorMsg && (
-            <div className='text-xs text-gray-400 mb-3'>{errorMsg}</div>
+            <div className='theme-text-muted mb-3 text-xs'>{errorMsg}</div>
           )}
           <button
             onClick={loadItems}
-            className='bg-black text-white px-4 py-2 rounded-lg'>
+            className='theme-primary-button rounded-lg px-4 py-2 transition-opacity'>
             重试
           </button>
         </div>
       ) : items.length === 0 ? (
-        <div className='rounded-xl bg-white p-5 shadow-sm text-sm text-gray-500'>
+        <div className='theme-panel theme-text-muted rounded-xl p-5 text-sm'>
           还没有收藏，先粘贴一个链接试试。
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className='rounded-xl bg-white p-5 shadow-sm text-sm text-gray-500'>
+        <div className='theme-panel theme-text-muted rounded-xl p-5 text-sm'>
           当前筛选条件下还没有匹配内容，换个分类或平台试试。
         </div>
       ) : (
@@ -926,7 +930,7 @@ export default function HomePage() {
               setLayout(next);
               localStorage.setItem("revive-layout", next);
             }}
-            className="fixed bottom-46 right-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/45 bg-white/42 text-stone-900 shadow-[0_10px_28px_rgba(15,23,42,0.08)] ring-1 ring-stone-200/25 backdrop-blur-xl hover:bg-white/60"
+            className="theme-floating theme-border fixed bottom-46 right-4 z-30 flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-xl transition-colors"
             aria-label={layout === "grid" ? "切换为列表布局" : "切换为瀑布流布局"}
           >
             {layout === "grid" ? (
@@ -958,7 +962,7 @@ export default function HomePage() {
         />
         <div ref={listEndRef} className="h-1" aria-hidden="true" />
         {isNearListBottom && bottomReachedMessage && (
-          <div className="mt-4 mb-2 text-center text-sm font-medium tracking-[0.02em] text-stone-400">
+          <div className="theme-text-subtle mt-4 mb-2 text-center text-sm font-medium tracking-[0.02em]">
             {bottomReachedMessage}
           </div>
         )}
@@ -1063,20 +1067,20 @@ export default function HomePage() {
           }}
         >
           {!hasReminderAccess ? (
-            <div className='rounded-2xl bg-stone-50 px-3 py-4 text-sm leading-6 text-stone-600'>
+            <div className='theme-panel-muted rounded-2xl px-3 py-4 text-sm leading-6'>
               这会是未来的 Pro 能力：把重要收藏设置成稍后提醒，或每天 20:00 统一回看。
             </div>
           ) : telegramConnection ? (
             <div className='space-y-4'>
-              <div className='rounded-2xl bg-stone-50 px-3 py-3 text-sm text-stone-700'>
+              <div className='theme-panel-muted rounded-2xl px-3 py-3 text-sm'>
                 当前内容：
-                <div className='mt-1 line-clamp-2 font-medium text-stone-900'>
+                <div className='mt-1 line-clamp-2 font-medium text-[var(--foreground)]'>
                   {reminderDialogItem.title}
                 </div>
               </div>
 
               <div className='space-y-2'>
-                <label className='flex cursor-pointer items-start gap-3 rounded-2xl border border-stone-200 px-3 py-3 text-sm text-stone-700'>
+                <label className='theme-panel theme-border flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-3 text-sm'>
                   <input
                     type='radio'
                     name='reminder-type'
@@ -1085,16 +1089,16 @@ export default function HomePage() {
                     className='mt-0.5'
                   />
                   <div>
-                    <div className='font-medium text-stone-900'>
+                    <div className='font-medium text-[var(--foreground)]'>
                       选择一个时间提醒我
                     </div>
-                    <div className='mt-1 text-xs text-stone-500'>
+                    <div className='theme-text-muted mt-1 text-xs'>
                       支持今天、明天或更晚的单次提醒。
                     </div>
                   </div>
                 </label>
 
-                <label className='flex cursor-pointer items-start gap-3 rounded-2xl border border-stone-200 px-3 py-3 text-sm text-stone-700'>
+                <label className='theme-panel theme-border flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-3 text-sm'>
                   <input
                     type='radio'
                     name='reminder-type'
@@ -1103,10 +1107,10 @@ export default function HomePage() {
                     className='mt-0.5'
                   />
                   <div>
-                    <div className='font-medium text-stone-900'>
+                    <div className='font-medium text-[var(--foreground)]'>
                       每天 20:00 提醒我
                     </div>
-                    <div className='mt-1 text-xs text-stone-500'>
+                    <div className='theme-text-muted mt-1 text-xs'>
                       适合晚上统一回看收藏。
                     </div>
                   </div>
@@ -1114,18 +1118,18 @@ export default function HomePage() {
               </div>
 
               {reminderDraftType === "once" ? (
-                <label className='block text-sm text-stone-700'>
-                  <div className='mb-1 text-xs text-stone-500'>提醒时间</div>
+                <label className='block text-sm text-[var(--foreground)]'>
+                  <div className='theme-text-muted mb-1 text-xs'>提醒时间</div>
                   <input
                     type='datetime-local'
                     value={reminderDraftAt}
                     min={getDefaultReminderDateTimeValue(new Date())}
                     onChange={(event) => setReminderDraftAt(event.target.value)}
-                    className='w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900'
+                    className='theme-input w-full rounded-xl border px-3 py-2.5 text-sm'
                   />
                 </label>
               ) : (
-                <div className='rounded-2xl border border-dashed border-stone-200 px-3 py-4 text-sm text-stone-500'>
+                <div className='theme-border theme-text-muted rounded-2xl border border-dashed px-3 py-4 text-sm'>
                   保存后，这条内容会在每天晚上 20:00 提醒你。
                 </div>
               )}
@@ -1134,13 +1138,13 @@ export default function HomePage() {
                 <button
                   type='button'
                   onClick={() => void handleCancelReminder()}
-                  className='w-full rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-500'>
+                  className='theme-danger-soft w-full rounded-xl px-4 py-2.5 text-sm transition-colors'>
                   取消当前提醒
                 </button>
               )}
             </div>
           ) : (
-            <div className='rounded-2xl bg-stone-50 px-3 py-4 text-sm leading-6 text-stone-600'>
+            <div className='theme-panel-muted rounded-2xl px-3 py-4 text-sm leading-6'>
               在 Telegram 里点一次 Start，Revive 才知道以后把提醒发到哪一个账号。
             </div>
           )}
@@ -1157,14 +1161,14 @@ export default function HomePage() {
           onCancel={() => setDialogState(null)}
         >
           <div className="space-y-4">
-            <label className="block text-sm text-stone-700">
-              <div className="mb-1 text-xs text-stone-500">平台</div>
+            <label className="block text-sm text-[var(--foreground)]">
+              <div className="theme-text-muted mb-1 text-xs">平台</div>
               <select
                 value={selectedPlatformFilter}
                 onChange={(event) =>
                   setSelectedPlatformFilter(event.target.value as Platform | "all")
                 }
-                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900"
+                className="theme-input w-full rounded-xl border px-3 py-2.5 text-sm"
               >
                 <option value="all">全部平台</option>
                 <option value="douyin">抖音</option>
@@ -1177,12 +1181,12 @@ export default function HomePage() {
               </select>
             </label>
 
-            <label className="block text-sm text-stone-700">
-              <div className="mb-1 text-xs text-stone-500">分类</div>
+            <label className="block text-sm text-[var(--foreground)]">
+              <div className="theme-text-muted mb-1 text-xs">分类</div>
               <select
                 value={selectedCategoryFilter}
                 onChange={(event) => setSelectedCategoryFilter(event.target.value)}
-                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-900"
+                className="theme-input w-full rounded-xl border px-3 py-2.5 text-sm"
               >
                 <option value="all">全部分类</option>
                 {categoryOptions.map((category) => (
@@ -1215,20 +1219,20 @@ export default function HomePage() {
           }}
         >
           <div className="space-y-4">
-            <div className="rounded-2xl bg-stone-50 px-3 py-3 text-sm text-stone-700">
+            <div className="theme-panel-muted rounded-2xl px-3 py-3 text-sm">
               当前内容：
-              <div className="mt-1 line-clamp-2 font-medium text-stone-900">
+              <div className="mt-1 line-clamp-2 font-medium text-[var(--foreground)]">
                 {categoryDialogItem.title}
               </div>
             </div>
 
             {categoryOptions.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-stone-200 px-3 py-4 text-sm text-stone-500">
+              <div className="theme-border theme-text-muted rounded-2xl border border-dashed px-3 py-4 text-sm">
                 你还没有创建分类，先去「我的」里添加一个吧。
               </div>
             ) : (
               <div>
-                <div className="mb-2 text-xs text-stone-500">选择分类</div>
+                <div className="theme-text-muted mb-2 text-xs">选择分类</div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -1237,8 +1241,8 @@ export default function HomePage() {
                       (pendingCategoryId !== undefined
                         ? pendingCategoryId === null
                         : !categoryDialogItem.categoryId)
-                        ? "bg-stone-900 text-white"
-                        : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                        ? "theme-primary-button"
+                        : "theme-secondary-button"
                     }`}
                   >
                     暂不分类
@@ -1256,8 +1260,8 @@ export default function HomePage() {
                         onClick={() => setPendingCategoryId(category.id)}
                         className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
                           isSelected
-                            ? "bg-stone-900 text-white"
-                            : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                            ? "theme-primary-button"
+                            : "theme-secondary-button"
                         }`}
                       >
                         {category.name}

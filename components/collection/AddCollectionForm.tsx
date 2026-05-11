@@ -42,30 +42,30 @@ export function AddCollectionForm({
             onChange={(e) => onInputChange(e.target.value)}
             onPaste={handlePaste}
             placeholder='当前版本仅支持链接收藏'
-            className='w-full p-2 pr-8 border rounded-lg text-gray-900 placeholder:text-gray-400'
+            className='theme-input w-full rounded-lg border p-2 pr-8 text-sm'
           />
           {input && (
             <button
               onClick={onClear}
-              className='absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'>
+              className='theme-text-subtle absolute right-2 top-1/2 -translate-y-1/2 transition-colors hover:opacity-75'>
               ✕
             </button>
           )}
         </div>
         <button
           onClick={onPaste}
-          className='bg-gray-100 text-gray-900 px-3 rounded-lg'>
+          className='theme-secondary-button rounded-lg px-3 transition-colors'>
           粘贴
         </button>
         <button
           onClick={onSubmit}
           disabled={submitting}
-          className='bg-black text-white px-4 rounded-lg disabled:opacity-50'>
+          className='theme-primary-button rounded-lg px-4 transition-opacity disabled:opacity-50'>
           {submitting ? "添加中..." : "添加"}
         </button>
       </div>
       {!clipboardSupported && (
-        <p className='mt-2 text-xs text-gray-500'>
+        <p className='theme-text-muted mt-2 text-xs'>
           当前地址不支持直接读取系统剪贴板，请长按输入框手动粘贴链接或直接点击粘贴按钮。
         </p>
       )}

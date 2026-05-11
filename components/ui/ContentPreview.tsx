@@ -33,13 +33,13 @@ export function ContentPreview({ url, onClose }: ContentPreviewProps) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white">
+    <div className="theme-page fixed inset-0 z-50 flex flex-col">
       {/* Top navigation bar */}
-      <div className="flex h-12 shrink-0 items-center border-b border-stone-200 px-3">
+      <div className="theme-border flex h-12 shrink-0 items-center border-b px-3">
         <button
           type="button"
           onClick={onClose}
-          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-100"
+          className="theme-secondary-button flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-colors"
         >
           <svg
             viewBox="0 0 24 24"
@@ -60,10 +60,10 @@ export function ContentPreview({ url, onClose }: ContentPreviewProps) {
       {/* iframe area */}
       <div className="relative flex-1">
         {!loaded && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white">
+          <div className="theme-page absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-stone-300 border-t-stone-900" />
-              <span className="text-xs text-stone-400">正在加载预览...</span>
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--foreground)]" />
+              <span className="theme-text-subtle text-xs">正在加载预览...</span>
             </div>
           </div>
         )}

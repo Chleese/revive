@@ -26,11 +26,11 @@ export function ClipboardPrompt({
       onConfirm={onConfirm}
       onCancel={onCancel}
     >
-      <div className="rounded-2xl bg-stone-50 px-4 py-3 text-left">
-        <p className="mb-1 text-xs uppercase tracking-[0.28em] text-stone-400">
+      <div className="theme-panel-muted rounded-2xl px-4 py-3 text-left">
+        <p className="theme-text-subtle mb-1 text-xs uppercase tracking-[0.28em]">
           {getPlatformName(platform)}
         </p>
-        <p className="truncate text-sm text-stone-600">{url}</p>
+        <p className="theme-text-muted truncate text-sm">{url}</p>
       </div>
     </AppDialog>
   );

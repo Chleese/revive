@@ -38,23 +38,23 @@ export function AppDialog({
 
   const confirmClassName = tone === "danger"
     ? "bg-red-500 text-white hover:bg-red-600"
-    : "bg-black text-white hover:bg-stone-800";
+    : "theme-primary-button";
   const panelRadiusClassName = cornerStyle === "tight" ? "rounded-[18px]" : "rounded-[28px]";
   const buttonRadiusClassName = cornerStyle === "tight" ? "rounded-xl" : "rounded-2xl";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[3px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-[3px]">
       <div
         role="dialog"
         aria-modal="true"
-        className={`w-full max-w-sm border border-stone-200/80 bg-white p-6 shadow-[0_30px_80px_rgba(15,23,42,0.16)] ${panelRadiusClassName}`}
+        className={`theme-panel theme-border w-full max-w-sm border p-6 ${panelRadiusClassName}`}
       >
         <div className="mb-5">
-          <h3 className="text-lg font-semibold tracking-[0.02em] text-stone-950">
+          <h3 className="text-lg font-semibold tracking-[0.02em] text-[var(--foreground)]">
             {title}
           </h3>
           {description && (
-            <p className="mt-2 text-sm leading-6 text-stone-500">
+            <p className="theme-text-muted mt-2 text-sm leading-6">
               {description}
             </p>
           )}
@@ -70,7 +70,7 @@ export function AppDialog({
           <button
             type="button"
             onClick={onCancel}
-            className={`flex-1 border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 ${buttonRadiusClassName}`}
+            className={`theme-secondary-button theme-border flex-1 border px-4 py-2.5 text-sm font-medium transition-colors ${buttonRadiusClassName}`}
           >
             {cancelText}
           </button>

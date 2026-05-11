@@ -17,7 +17,7 @@ export function ReviveLoading({
 }: ReviveLoadingProps) {
   const shellClassName = fullscreen
     ? "min-h-screen bg-stone-950 px-6 py-10 text-stone-100"
-    : "px-6 py-10 text-stone-900";
+    : "px-6 py-10 text-[var(--foreground)]";
 
   const frameClassName = compact
     ? "mx-auto max-w-md"
@@ -44,10 +44,10 @@ export function ReviveLoading({
           </div>
 
           <div className="space-y-1.5">
-            <p className={`text-sm font-medium tracking-[0.14em] ${fullscreen ? "text-white/88" : "text-stone-700"}`}>
+            <p className={`text-sm font-medium tracking-[0.14em] ${fullscreen ? "text-white/88" : "text-[var(--foreground)]"}`}>
               {label}
             </p>
-            <p className={`mx-auto max-w-md text-sm leading-6 ${fullscreen ? "text-white/45" : "text-stone-400"}`}>
+            <p className={`mx-auto max-w-md text-sm leading-6 ${fullscreen ? "text-white/45" : "text-[var(--text-muted)]"}`}>
               {detail}
             </p>
           </div>

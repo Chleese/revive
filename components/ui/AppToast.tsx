@@ -22,8 +22,8 @@ export function AppToast({
   }, [message, onDismiss]);
 
   const toneClassName = tone === "error"
-    ? "border-red-100 bg-red-50 text-red-700"
-    : "border-stone-200 bg-white text-stone-700";
+    ? "border-[color:var(--notice-border)] bg-[color:var(--danger-soft)] text-[color:var(--danger-text)]"
+    : "theme-border bg-[var(--surface)] text-[var(--foreground)]";
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-[86px] z-50 flex justify-center px-4">
