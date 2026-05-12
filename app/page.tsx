@@ -446,14 +446,18 @@ export default function HomePage() {
     if (!clipboardSupported) {
       inputRef.current?.focus();
       inputRef.current?.select();
+      showToast("当前无法直接读取剪贴板，请手动粘贴。");
       return;
     }
 
     try {
       const text = await navigator.clipboard.readText();
-      if (text) {
-        handleInputPaste(text);
+      if (!text.trim()) {
+        showToast("剪贴板里还没有内容。");
+        return;
       }
+
+      handleInputPaste(text);
     } catch {
       showToast("无法读取剪贴板，请手动粘贴", "error");
     }
@@ -487,6 +491,7 @@ export default function HomePage() {
 
       if (!rawInput) {
         setSubmitting(false);
+        showToast("先粘贴或输入一个链接。");
         return;
       }
 
@@ -819,11 +824,25 @@ export default function HomePage() {
         <div className="flex items-center gap-2">
           <ThemeToggleButton />
           <button
+            type='button'
             onClick={async () => {
               await authService.signOut();
               window.location.replace("/login");
             }}
-            className='theme-secondary-button rounded-full px-3 py-1.5 text-sm font-medium transition-colors'>
+            className='theme-secondary-button inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors'>
+            <svg
+              viewBox='0 0 24 24'
+              width='16'
+              height='16'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='1.8'
+              strokeLinecap='round'
+              strokeLinejoin='round'>
+              <path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' />
+              <path d='M16 17l5-5-5-5' />
+              <path d='M21 12H9' />
+            </svg>
             登出
           </button>
         </div>

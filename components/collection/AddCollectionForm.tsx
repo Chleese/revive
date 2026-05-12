@@ -1,6 +1,6 @@
 "use client";
 
-import type { ClipboardEvent, RefObject } from "react";
+import { useState, type ClipboardEvent, type RefObject } from "react";
 
 type AddCollectionFormProps = {
   input: string;
@@ -25,6 +25,9 @@ export function AddCollectionForm({
   onPaste,
   onSubmit,
 }: AddCollectionFormProps) {
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const shouldShowClearAction = isInputFocused && Boolean(input);
+
   const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
     const pastedText = event.clipboardData.getData("text");
     if (pastedText) {
@@ -35,29 +38,44 @@ export function AddCollectionForm({
   return (
     <div className='mb-4'>
       <div className='flex gap-2'>
-        <div className='relative flex-1'>
+        <div className='group relative flex-1'>
           <input
             ref={inputRef}
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
             onPaste={handlePaste}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
             placeholder='当前版本仅支持链接收藏'
-            className='theme-input w-full rounded-lg border p-2 pr-8 text-sm'
+            className={`theme-input w-full rounded-lg border py-2 pl-3 text-sm ${
+              shouldShowClearAction ? "pr-24" : "pr-16"
+            }`}
           />
-          {input && (
+          <div className='absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1.5'>
+            {input && (
+              <button
+                type='button'
+                onClick={onClear}
+                onMouseDown={(event) => event.preventDefault()}
+                aria-label='清空输入内容'
+                className={`theme-text-subtle flex h-7 w-7 items-center justify-center rounded-full transition-all hover:opacity-75 ${
+                  shouldShowClearAction
+                    ? "pointer-events-auto opacity-100"
+                    : "pointer-events-none opacity-0"
+                }`}>
+                ✕
+              </button>
+            )}
             <button
-              onClick={onClear}
-              className='theme-text-subtle absolute right-2 top-1/2 -translate-y-1/2 transition-colors hover:opacity-75'>
-              ✕
+              type='button'
+              onClick={onPaste}
+              className='theme-secondary-button rounded-full px-2.5 py-1 text-xs font-medium transition-colors'>
+              粘贴
             </button>
-          )}
+          </div>
         </div>
         <button
-          onClick={onPaste}
-          className='theme-secondary-button rounded-lg px-3 transition-colors'>
-          粘贴
-        </button>
-        <button
+          type='button'
           onClick={onSubmit}
           disabled={submitting}
           className='theme-primary-button rounded-lg px-4 transition-opacity disabled:opacity-50'>
