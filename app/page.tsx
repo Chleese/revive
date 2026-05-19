@@ -536,7 +536,16 @@ export default function HomePage() {
           categoryNameById,
         });
 
-        setItems((currentItems) => [newItem, ...currentItems]);
+        setItems((currentItems) => {
+          const shortTitle = title.length > 20 ? title.slice(0, 20) + '…' : title;
+          const isDuplicate = currentItems.some((it) => it.url === finalUrl);
+          showToast(
+            isDuplicate
+              ? `已收藏「${shortTitle}」— 该链接之前已收藏过`
+              : `已收藏「${shortTitle}」`,
+          );
+          return [newItem, ...currentItems];
+        });
         setInput("");
         setShowClipboardPrompt(false);
         setDetectedUrl(null);

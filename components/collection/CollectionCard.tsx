@@ -35,8 +35,11 @@ export function CollectionCard({
 }: CollectionCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const titleMeasureHostRef = useRef<HTMLDivElement>(null);
+  const titleMeasureRef = useRef<HTMLDivElement>(null);
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showInlineEditBadge, setShowInlineEditBadge] = useState(true);
   const categoryLabel = item.categoryName ?? "未分类";
   const reminderLabel = item.reminder
     ? formatReminderSummary(item.reminder)
@@ -82,6 +85,38 @@ export function CollectionCard({
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!item.needsEdit) return;
+
+    const host = titleMeasureHostRef.current;
+    const measure = titleMeasureRef.current;
+    if (!host || !measure) return;
+
+    const updateLayoutMode = () => {
+      const lineHeight = Number.parseFloat(
+        window.getComputedStyle(measure).lineHeight || "20",
+      );
+      const measuredHeight = measure.getBoundingClientRect().height;
+      setShowInlineEditBadge(measuredHeight <= lineHeight * 2 + 1);
+    };
+
+    const frameId = window.requestAnimationFrame(() => {
+      updateLayoutMode();
+    });
+
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(() => {
+      updateLayoutMode();
+    });
+
+    observer.observe(host);
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [isGrid, item.needsEdit, item.title]);
 
   return (
     <div
@@ -136,18 +171,53 @@ export function CollectionCard({
           </div>
         ) : (
           <>
-            <div className={`line-clamp-2 font-medium text-[var(--foreground)] ${isGrid ? "mb-1 text-sm" : "mb-1"}`}>
-              {item.title}
+            <div
+              ref={titleMeasureHostRef}
+              className={`relative text-[var(--foreground)] ${isGrid ? "mb-1 text-sm" : "mb-1"}`}
+            >
+              {item.needsEdit && (
+                <div
+                  ref={titleMeasureRef}
+                  aria-hidden="true"
+                  className="pointer-events-none invisible absolute inset-x-0 top-0 font-medium leading-5"
+                >
+                  <span>{item.title}</span>{" "}
+                  <span className="theme-warning-badge inline-flex rounded-full px-2 py-0.5 text-[11px] leading-4 align-middle">
+                    待编辑
+                  </span>
+                </div>
+              )}
+
+              {item.needsEdit ? (
+                showInlineEditBadge ? (
+                  <div className="line-clamp-2 font-medium leading-5">
+                    <span>{item.title}</span>{" "}
+                    <span className="theme-warning-badge inline-flex rounded-full px-2 py-0.5 text-[11px] leading-4 align-middle">
+                      待编辑
+                    </span>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div
+                      className={`line-clamp-2 font-medium leading-5 ${isGrid ? "pr-12" : "pr-14"}`}
+                    >
+                      {item.title}
+                    </div>
+                    <span className="theme-warning-badge absolute bottom-0 right-0 inline-flex rounded-full px-2 py-0.5 text-[11px] leading-4">
+                      待编辑
+                    </span>
+                  </div>
+                )
+              ) : (
+                <div className="line-clamp-2 font-medium leading-5">
+                  {item.title}
+                </div>
+              )}
             </div>
             <div className={`theme-text-muted flex items-center justify-between text-xs ${isGrid ? "mb-1" : "mb-2"}`}>
               <span className="flex items-center gap-2">
                 <PlatformIcon platform={item.platform} size={16} />
                 {getPlatformName(item.platform)}
-                {item.needsEdit && (
-                  <span className='theme-warning-badge rounded-full px-2 py-0.5 text-xs'>
-                    标题待编辑
-                  </span>
-                )}
               </span>
               <span
                 className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs ${
