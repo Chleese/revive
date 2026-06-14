@@ -15,6 +15,8 @@
 - metadata 解析已经支持一套基础来源判断。
 - 已新增阶段一数据库草案文件：`supabase/phase1_schema.sql`。
 - 首页已经接入新的 metadata 解析链路，不再只靠原来的前端正则。
+- 待办（todos）模块已完成：独立的待办页、优先级、状态、拖拽排序、提醒（详见第 9 节）。
+- 底部导航改为 收藏 / 待办 / 我的，三个 tab 图标统一线条风。
 
 ## 2. 当前推荐开发顺序
 
@@ -216,6 +218,21 @@
 第一版规则：
 - 一条收藏只允许 1 个有效提醒
 
+### `todos`
+
+这是待办表，一行就是一条待办事项或生活备忘。
+
+用途：
+- 存内容（纯文字，可以是短句也可以是多段）
+- 存优先级（高 / 中 / 低）
+- 存状态（待办 / 进行中 / 已完成 / 搁置）
+- 存手动排序 `sort_order`（拖拽用）
+- 提醒字段直接挂在这张表上（`remind_at` / `reminder_type` / `reminder_status`），因为提醒只是偶尔用，没必要单独建表
+
+和 `collections` 的关系：
+- 完全独立，不共享数据
+- 待办不做分类（`category_id` 列保留但暂不使用），避免和收藏分类混淆
+
 ## 5. metadata 字段说明
 
 ### `metadata_source`
@@ -308,7 +325,46 @@ metadata 解析必须保持一套后端规则。
 
 如果继续推进，优先顺序建议是：
 
-1. 打磨“我的”页的账号感和管理入口
+1. 打磨”我的”页的账号感和管理入口
 2. 继续完善单条内容的分类编辑体验
 3. 确认提醒入口交互
 4. 再进入 Telegram 单条提醒
+
+## 9. 待办模块（新增于 2026-06）
+
+### 9.1 是什么
+
+独立于收藏的「待办 / 备忘」功能。用户随手记录生活小事、需要提醒的事情，可以排优先级、改状态、拖拽排序、设提醒。底层是新的 `todos` 表，和 `collections` 完全分开。
+
+底部导航从 收藏 / 我的 两 tab 变成 收藏 / 待办 / 我的。
+
+### 9.2 数据模型
+
+新建 `supabase/phase2_todos_schema.sql`，包含：
+
+- `todos` 表：`content`、`priority`、`sort_order`、`status`、`category_id`（暂不用）、`remind_at`、`reminder_type`、`reminder_status`、时间戳，带 RLS（用户只能操作自己的，和 collections 一致）。
+- `categories` 表加 `scope` 列（`all` / `bookmarks` / `todos`），默认 `all`。当前未在 UI 暴露，待办页也没用分类。
+
+### 9.3 关键设计决策
+
+- **优先级**：高 / 中 / 低，对应红 / 琥珀 / 灰三色（复用 globals.css 的 `--danger-text` / `--warning-text` / `--text-muted`）。卡片左侧色条 + 圆点，点击循环切换。
+- **状态**：待办 / 进行中 / 已完成 / 搁置，点击循环切换。显示顺序按状态分组（已完成的沉到底），同组内按 `sort_order` 再按 `created_at`。
+- **拖拽排序**：用 `@dnd-kit`，长按 180ms 激活，避免误触。拖完批量写回 `sort_order`。开筛选时不允许拖拽。
+- **提醒挂在自己表上**：不另建提醒表，直接用 `todos.remind_*` 字段。复用现有的 dispatch 引擎，新增 `dispatchDueTodoReminders()`，run-due / 定时任务会同时处理收藏和待办两类到期提醒。
+- **待办不做分类**：曾考虑复用 categories + scope，但判断对”记小事”场景是多余负担，已从待办页移除（`category_id` 列保留备用）。
+- **手机 Enter 行为**：触屏设备回车换行、靠按钮提交；桌面 Enter 提交、Shift+Enter 换行。用 `useSyncExternalStore` 做触屏检测。
+
+### 9.4 主要文件
+
+- `lib/todos/`：types / queries / mutations（含 reorder）/ display（颜色与排序）
+- `lib/services/todos.ts`
+- `lib/reminders/dispatch.ts`：新增 `dispatchDueTodoReminders`
+- `components/todos/`：AddTodoForm / TodoCard / TodoList（含 @dnd-kit）
+- `app/todos/page.tsx`：待办页
+
+### 9.5 后续可考虑
+
+- 待办重新加分类（数据库已留好 `category_id`）
+- 已完成项进入「回忆录 / 回顾」页（对应 ROADMAP 阶段四方向）：当前已完成项沉底、不参与拖拽，但不折叠也不隐藏；等做回顾页时整体迁过去
+- 提醒时间选项扩展（当前只有”单次”和”每天 20:00”）
+- 提醒时区已支持用户本地时区（`reminder_timezone` 列），dispatch 用存储的时区排程

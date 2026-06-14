@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/app/lib/supabase/server";
 import { getReminderAccessDeniedMessage } from "@/lib/profiles/access";
 import { userCanUseReminders } from "@/lib/profiles/server";
-import { dispatchDueReminders } from "@/lib/reminders/dispatch";
+import {
+  dispatchDueReminders,
+  dispatchDueTodoReminders,
+  type ReminderDispatchResult,
+} from "@/lib/reminders/dispatch";
 
 export const runtime = "nodejs";
 
@@ -25,13 +29,26 @@ export async function POST() {
       );
     }
 
-    return NextResponse.json(
-      await dispatchDueReminders({
-        userId: user.id,
-        limit: 20,
-        source: "page_heartbeat",
-      }),
-    );
+    const collectionResult = await dispatchDueReminders({
+      userId: user.id,
+      limit: 20,
+      source: "page_heartbeat",
+    });
+    const todoResult = await dispatchDueTodoReminders({
+      userId: user.id,
+      limit: 20,
+      source: "page_heartbeat",
+    });
+
+    const merged: ReminderDispatchResult = {
+      source: collectionResult.source,
+      processed: collectionResult.processed + todoResult.processed,
+      sentCount: collectionResult.sentCount + todoResult.sentCount,
+      failedCount: collectionResult.failedCount + todoResult.failedCount,
+      skippedCount: collectionResult.skippedCount + todoResult.skippedCount,
+    };
+
+    return NextResponse.json(merged);
   } catch (error) {
     return NextResponse.json(
       {

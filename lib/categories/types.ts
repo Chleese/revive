@@ -1,9 +1,12 @@
+export type CategoryScope = "all" | "bookmarks" | "todos";
+
 export type CategoryRecord = {
   id: string;
   user_id: string;
   name: string;
   color?: string | null;
   sort_order?: number | null;
+  scope?: CategoryScope;
   created_at?: string;
   updated_at?: string | null;
 };

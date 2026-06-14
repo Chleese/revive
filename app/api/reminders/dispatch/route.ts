@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dispatchDueReminders } from "@/lib/reminders/dispatch";
+import {
+  dispatchDueReminders,
+  dispatchDueTodoReminders,
+  type ReminderDispatchResult,
+} from "@/lib/reminders/dispatch";
 
 export const runtime = "nodejs";
 
@@ -12,11 +16,22 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    return NextResponse.json(
-      await dispatchDueReminders({
-        source: "scheduled_dispatch",
-      }),
-    );
+    const collectionResult = await dispatchDueReminders({
+      source: "scheduled_dispatch",
+    });
+    const todoResult = await dispatchDueTodoReminders({
+      source: "scheduled_dispatch",
+    });
+
+    const merged: ReminderDispatchResult = {
+      source: collectionResult.source,
+      processed: collectionResult.processed + todoResult.processed,
+      sentCount: collectionResult.sentCount + todoResult.sentCount,
+      failedCount: collectionResult.failedCount + todoResult.failedCount,
+      skippedCount: collectionResult.skippedCount + todoResult.skippedCount,
+    };
+
+    return NextResponse.json(merged);
   } catch (error) {
     return NextResponse.json(
       {
