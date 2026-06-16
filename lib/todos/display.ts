@@ -133,6 +133,33 @@ export function isLongContent(content: string): boolean {
 }
 
 /**
+ * 把 `**加粗**` 语法解析成段落，供卡片渲染时把加粗部分显示得更重。
+ * 未闭合的 `**` 不算加粗（原样保留），避免误判。
+ */
+export type TextSegment = { text: string; bold: boolean };
+
+export function parseBoldSegments(content: string): TextSegment[] {
+  const segments: TextSegment[] = [];
+  const regex = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ text: content.slice(lastIndex, match.index), bold: false });
+    }
+    segments.push({ text: match[1], bold: true });
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    segments.push({ text: content.slice(lastIndex), bold: false });
+  }
+
+  return segments.length ? segments : [{ text: content, bold: false }];
+}
+
+/**
  * 复用收藏提醒的摘要格式化逻辑（将 TodoReminderView 适配为 ActiveReminderView）。
  */
 export function formatTodoReminderSummary(

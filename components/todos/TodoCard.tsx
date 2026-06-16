@@ -12,6 +12,7 @@ import {
   getStatusLabel,
   getStatusStyle,
   isLongContent,
+  parseBoldSegments,
 } from "@/lib/todos/display";
 
 type TodoCardProps = {
@@ -319,7 +320,20 @@ export function TodoCard({
                   className={`block w-full text-left text-sm leading-6 text-[var(--foreground)] ${
                     showClamp ? "line-clamp-3" : ""
                   }`}>
-                  <span className="whitespace-pre-wrap">{item.content}</span>
+                  <span className="whitespace-pre-wrap">
+                    {parseBoldSegments(item.content).map((segment, index) =>
+                      segment.bold ? (
+                        <strong
+                          key={index}
+                          className="font-bold"
+                          style={{ color: "var(--todo-emphasis)" }}>
+                          {segment.text}
+                        </strong>
+                      ) : (
+                        <span key={index}>{segment.text}</span>
+                      ),
+                    )}
+                  </span>
                 </button>
 
                 {/* 底栏：状态 */}
